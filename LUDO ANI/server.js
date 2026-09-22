@@ -17,66 +17,108 @@ const rooms = {};
 const COLORS = ['red', 'green', 'yellow', 'blue'];
 
 io.on('connection', (socket) => {
+  // 1. Create Room
+  socket.on('createRoom', ({ playerName }) => {
+    if (!playerName) return;
+    const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+    rooms[roomCode] = {
+      hostId: socket.id,
+      gameStarted: false,
+      players: [{ id: socket.id, name: playerName.trim(), color: COLORS[0] }],
+      turnIndex: 0,
+      currentRoll: 0,
+      tokens: {
+        red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+        green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+        yellow: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+        blue: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
+      }
+    };
+
+    socket.join(roomCode);
+    socket.roomCode = roomCode;
+    socket.playerColor = COLORS[0];
+
+    socket.emit('roomCreated', {
+      roomCode: roomCode,
+      myColor: COLORS[0],
+      isHost: true,
+      players: rooms[roomCode].players
+    });
+  });
+
+  // 2. Join Room
   socket.on('joinRoom', ({ playerName, roomCode }) => {
-    if (!roomCode || !playerName) return;
-    const cleanRoom = roomCode.trim().toUpperCase();
+    const code = (roomCode || '').trim().toUpperCase();
+    const room = rooms[code];
 
-    if (!rooms[cleanRoom]) {
-      rooms[cleanRoom] = {
-        players: [],
-        turnIndex: 0,
-        currentRoll: 0,
-        tokens: {
-          red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-          green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-          yellow: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-          blue: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
-        }
-      };
+    if (!room) {
+      socket.emit('gameError', 'Yeh Room Code maujood nahi hai!');
+      return;
     }
-
-    const room = rooms[cleanRoom];
+    if (room.gameStarted) {
+      socket.emit('gameError', 'Game pehle hi shuru ho chuka hai!');
+      return;
+    }
     if (room.players.length >= 4) {
-      socket.emit('gameError', 'Yeh room pehle se full hai (Max 4 Players)!');
+      socket.emit('gameError', 'Room full hai (Maximum 4 Players)!');
       return;
     }
 
     const assignedColor = COLORS[room.players.length];
-    const player = { id: socket.id, name: playerName.trim(), color: assignedColor };
-    room.players.push(player);
+    const newPlayer = { id: socket.id, name: playerName.trim(), color: assignedColor };
+    room.players.push(newPlayer);
 
-    socket.join(cleanRoom);
-    socket.roomCode = cleanRoom;
+    socket.join(code);
+    socket.roomCode = code;
     socket.playerColor = assignedColor;
 
-    socket.emit('roomJoined', {
+    socket.emit('roomJoinedSuccess', {
+      roomCode: code,
       myColor: assignedColor,
-      roomCode: cleanRoom,
+      isHost: false,
       players: room.players
     });
 
-    io.to(cleanRoom).emit('syncState', {
+    // Notify all players in lobby
+    io.to(code).emit('lobbyUpdate', {
       players: room.players,
-      activeColor: room.players[room.turnIndex].color,
-      currentRoll: room.currentRoll,
+      hostId: room.hostId
+    });
+  });
+
+  // 3. Start Game (Host Only)
+  socket.on('startGame', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.hostId !== socket.id) return;
+    if (room.players.length < 2) {
+      socket.emit('gameError', 'Game shuru karne ke liye kam se kam 2 players chahiye!');
+      return;
+    }
+
+    room.gameStarted = true;
+    room.turnIndex = 0;
+    room.currentRoll = 0;
+
+    io.to(socket.roomCode).emit('gameStarted', {
+      players: room.players,
+      activeColor: room.players[0].color,
       tokens: room.tokens
     });
   });
 
+  // 4. Roll Dice
   socket.on('rollDice', () => {
     const room = rooms[socket.roomCode];
-    if (!room || room.currentRoll !== 0) return;
+    if (!room || !room.gameStarted || room.currentRoll !== 0) return;
 
     const activePlayer = room.players[room.turnIndex];
-    if (!activePlayer || activePlayer.id !== socket.id) {
-      socket.emit('gameError', 'Abhi aapki baari nahi hai!');
-      return;
-    }
+    if (!activePlayer || activePlayer.id !== socket.id) return;
 
     const roll = Math.floor(Math.random() * 6) + 1;
     room.currentRoll = roll;
 
-    // Check if player has any move
     const myTokens = room.tokens[activePlayer.color];
     const canMove = myTokens.some(t => {
       if (t.step === -1 && roll === 6) return true;
@@ -84,22 +126,25 @@ io.on('connection', (socket) => {
       return false;
     });
 
-    io.to(socket.roomCode).emit('diceRolled', { roll: roll, canMove: canMove });
+    io.to(socket.roomCode).emit('diceRolled', {
+      roll: roll,
+      activeColor: activePlayer.color,
+      canMove: canMove
+    });
 
     if (!canMove) {
       setTimeout(() => {
         room.currentRoll = 0;
         room.turnIndex = (room.turnIndex + 1) % room.players.length;
-        io.to(socket.roomCode).emit('syncState', {
-          players: room.players,
+        io.to(socket.roomCode).emit('turnChanged', {
           activeColor: room.players[room.turnIndex].color,
-          currentRoll: 0,
           tokens: room.tokens
         });
-      }, 1000);
+      }, 900);
     }
   });
 
+  // 5. Move Token
   socket.on('moveToken', ({ tokenIndex }) => {
     const room = rooms[socket.roomCode];
     if (!room || room.currentRoll === 0) return;
@@ -128,7 +173,6 @@ io.on('connection', (socket) => {
         bonus = true;
         eventType = 'home';
       } else if (t.step < 51) {
-        // Cut check
         const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
         const myGlobal = (START_OFFSET[color] + t.step) % 52;
         const safeGlobals = [0, 8, 13, 21, 26, 34, 39, 47];
@@ -140,7 +184,7 @@ io.on('connection', (socket) => {
                 if (other.step >= 0 && other.step < 51) {
                   const otherGlobal = (START_OFFSET[p.color] + other.step) % 52;
                   if (otherGlobal === myGlobal) {
-                    other.step = -1; // back to home
+                    other.step = -1;
                     bonus = true;
                     eventType = 'kill';
                   }
@@ -174,13 +218,12 @@ io.on('connection', (socket) => {
       if (room.players.length === 0) {
         delete rooms[socket.roomCode];
       } else {
-        room.turnIndex = 0;
-        room.currentRoll = 0;
-        io.to(socket.roomCode).emit('syncState', {
+        if (room.hostId === socket.id) {
+          room.hostId = room.players[0].id; // Assign next host
+        }
+        io.to(socket.roomCode).emit('lobbyUpdate', {
           players: room.players,
-          activeColor: room.players[0].color,
-          currentRoll: 0,
-          tokens: room.tokens
+          hostId: room.hostId
         });
       }
     }
