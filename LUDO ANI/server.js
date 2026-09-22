@@ -5,13 +5,10 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 10000;
 
-// Serve frontend directly
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -20,90 +17,170 @@ const rooms = {};
 const COLORS = ['red', 'green', 'yellow', 'blue'];
 
 io.on('connection', (socket) => {
-  console.log('Player connected:', socket.id);
-
   socket.on('joinRoom', ({ playerName, roomCode }) => {
     if (!roomCode || !playerName) return;
+    const cleanRoom = roomCode.trim().toUpperCase();
 
-    if (!rooms[roomCode]) {
-      rooms[roomCode] = {
+    if (!rooms[cleanRoom]) {
+      rooms[cleanRoom] = {
         players: [],
         turnIndex: 0,
-        lastRoll: null
+        currentRoll: 0,
+        tokens: {
+          red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+          green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+          yellow: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+          blue: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
+        }
       };
     }
 
-    const room = rooms[roomCode];
-
+    const room = rooms[cleanRoom];
     if (room.players.length >= 4) {
-      socket.emit('gameError', 'Room pehle se full hai (Max 4 Players)!');
+      socket.emit('gameError', 'Yeh room pehle se full hai (Max 4 Players)!');
       return;
     }
 
     const assignedColor = COLORS[room.players.length];
-    const player = {
-      id: socket.id,
-      name: playerName,
-      color: assignedColor
-    };
-
+    const player = { id: socket.id, name: playerName.trim(), color: assignedColor };
     room.players.push(player);
-    socket.join(roomCode);
-    socket.roomCode = roomCode;
 
-    // Send confirmation to joined player
+    socket.join(cleanRoom);
+    socket.roomCode = cleanRoom;
+    socket.playerColor = assignedColor;
+
     socket.emit('roomJoined', {
       myColor: assignedColor,
-      roomCode: roomCode
+      roomCode: cleanRoom,
+      players: room.players
     });
 
-    // Broadcast updated state to all in room
-    io.to(roomCode).emit('updateState', {
+    io.to(cleanRoom).emit('syncState', {
       players: room.players,
-      currentTurn: room.players[room.turnIndex].id,
-      lastRoll: room.lastRoll
+      activeColor: room.players[room.turnIndex].color,
+      currentRoll: room.currentRoll,
+      tokens: room.tokens
     });
   });
 
   socket.on('rollDice', () => {
-    const roomCode = socket.roomCode;
-    const room = rooms[roomCode];
-    if (!room) return;
+    const room = rooms[socket.roomCode];
+    if (!room || room.currentRoll !== 0) return;
 
-    const currentPlayer = room.players[room.turnIndex];
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
+    const activePlayer = room.players[room.turnIndex];
+    if (!activePlayer || activePlayer.id !== socket.id) {
       socket.emit('gameError', 'Abhi aapki baari nahi hai!');
       return;
     }
 
-    // Random dice 1 to 6
     const roll = Math.floor(Math.random() * 6) + 1;
-    room.lastRoll = roll;
+    room.currentRoll = roll;
 
-    // Turn shift logic (6 aane par extra baari)
-    if (roll !== 6) {
-      room.turnIndex = (room.turnIndex + 1) % room.players.length;
+    // Check if player has any move
+    const myTokens = room.tokens[activePlayer.color];
+    const canMove = myTokens.some(t => {
+      if (t.step === -1 && roll === 6) return true;
+      if (t.step !== -1 && t.step + roll <= 56) return true;
+      return false;
+    });
+
+    io.to(socket.roomCode).emit('diceRolled', { roll: roll, canMove: canMove });
+
+    if (!canMove) {
+      setTimeout(() => {
+        room.currentRoll = 0;
+        room.turnIndex = (room.turnIndex + 1) % room.players.length;
+        io.to(socket.roomCode).emit('syncState', {
+          players: room.players,
+          activeColor: room.players[room.turnIndex].color,
+          currentRoll: 0,
+          tokens: room.tokens
+        });
+      }, 1000);
+    }
+  });
+
+  socket.on('moveToken', ({ tokenIndex }) => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.currentRoll === 0) return;
+
+    const activePlayer = room.players[room.turnIndex];
+    if (!activePlayer || activePlayer.id !== socket.id) return;
+
+    const color = activePlayer.color;
+    const t = room.tokens[color][tokenIndex];
+    const roll = room.currentRoll;
+
+    let valid = false;
+    let bonus = (roll === 6);
+    let eventType = 'step';
+
+    if (t.step === -1 && roll === 6) {
+      t.step = 0;
+      valid = true;
+      bonus = true;
+      eventType = 'out';
+    } else if (t.step !== -1 && t.step + roll <= 56) {
+      t.step += roll;
+      valid = true;
+
+      if (t.step === 56) {
+        bonus = true;
+        eventType = 'home';
+      } else if (t.step < 51) {
+        // Cut check
+        const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
+        const myGlobal = (START_OFFSET[color] + t.step) % 52;
+        const safeGlobals = [0, 8, 13, 21, 26, 34, 39, 47];
+
+        if (!safeGlobals.includes(myGlobal)) {
+          room.players.forEach(p => {
+            if (p.color !== color) {
+              room.tokens[p.color].forEach(other => {
+                if (other.step >= 0 && other.step < 51) {
+                  const otherGlobal = (START_OFFSET[p.color] + other.step) % 52;
+                  if (otherGlobal === myGlobal) {
+                    other.step = -1; // back to home
+                    bonus = true;
+                    eventType = 'kill';
+                  }
+                }
+              });
+            }
+          });
+        }
+      }
     }
 
-    io.to(roomCode).emit('updateState', {
-      players: room.players,
-      currentTurn: room.players[room.turnIndex].id,
-      lastRoll: room.lastRoll
-    });
+    if (valid) {
+      room.currentRoll = 0;
+      if (!bonus) {
+        room.turnIndex = (room.turnIndex + 1) % room.players.length;
+      }
+
+      io.to(socket.roomCode).emit('tokenMoved', {
+        tokens: room.tokens,
+        activeColor: room.players[room.turnIndex].color,
+        eventType: eventType,
+        bonus: bonus
+      });
+    }
   });
 
   socket.on('disconnect', () => {
-    const roomCode = socket.roomCode;
-    if (roomCode && rooms[roomCode]) {
-      rooms[roomCode].players = rooms[roomCode].players.filter(p => p.id !== socket.id);
-      if (rooms[roomCode].players.length === 0) {
-        delete rooms[roomCode];
+    const room = rooms[socket.roomCode];
+    if (room) {
+      room.players = room.players.filter(p => p.id !== socket.id);
+      if (room.players.length === 0) {
+        delete rooms[socket.roomCode];
       } else {
-        rooms[roomCode].turnIndex = 0;
-        io.to(roomCode).emit('updateState', {
-          players: rooms[roomCode].players,
-          currentTurn: rooms[roomCode].players[0].id,
-          lastRoll: null
+        room.turnIndex = 0;
+        room.currentRoll = 0;
+        io.to(socket.roomCode).emit('syncState', {
+          players: room.players,
+          activeColor: room.players[0].color,
+          currentRoll: 0,
+          tokens: room.tokens
         });
       }
     }
@@ -111,5 +188,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo server is live on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
