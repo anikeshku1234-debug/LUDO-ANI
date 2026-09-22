@@ -1,295 +1,155 @@
 <!DOCTYPE html>
 <html lang="hi">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Multiplayer Ludo Room</title>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 15px;
-        }
-        
-        .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 420px;
-            padding: 25px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-            text-align: center;
-        }
-        
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: #38bdf8;
-        }
-        
-        h2 {
-            font-size: 18px;
-            margin-bottom: 15px;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 12px;
-            background: #0f172a;
-            border: 1px solid #475569;
-            border-radius: 8px;
-            color: white;
-            font-size: 16px;
-            outline: none;
-        }
-        
-        input:focus {
-            border-color: #38bdf8;
-        }
-        
-        button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s ease;
-            margin-top: 6px;
-        }
-        
-        .btn-join {
-            background: #0284c7;
-            color: white;
-        }
-        
-        .btn-join:hover {
-            background: #0369a1;
-        }
-        
-        .btn-start {
-            background: #16a34a;
-            color: white;
-            margin-top: 15px;
-        }
-        
-        .btn-start:hover {
-            background: #15803d;
-        }
-        
-        .btn-roll {
-            background: #f59e0b;
-            color: #000;
-            font-size: 18px;
-            padding: 14px;
-        }
-        
-        .btn-roll:hover {
-            background: #d97706;
-        }
-        
-        .players-list {
-            margin-top: 15px;
-            text-align: left;
-        }
-        
-        .player-chip {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .color-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            border: 1px solid #fff;
-        }
-        
-        .dice-container {
-            margin: 25px 0;
-        }
-        
-        .dice-val {
-            font-size: 70px;
-            font-weight: 800;
-            color: #f8fafc;
-            line-height: 1;
-            margin: 10px 0;
-        }
-        
-        .turn-indicator {
-            font-size: 16px;
-            margin-bottom: 15px;
-            padding: 8px;
-            border-radius: 6px;
-            background: #334155;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiplayer Ludo Room</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 15px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 420px; padding: 25px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); text-align: center; }
+    h1 { font-size: 24px; margin-bottom: 20px; color: #38bdf8; }
+    h2 { font-size: 18px; margin-bottom: 15px; }
+    input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: white; font-size: 16px; outline: none; }
+    input:focus { border-color: #38bdf8; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s ease; margin-top: 6px; }
+    .btn-join { background: #0284c7; color: white; }
+    .btn-join:hover { background: #0369a1; }
+    .btn-start { background: #16a34a; color: white; margin-top: 15px; }
+    .btn-start:hover { background: #15803d; }
+    .btn-roll { background: #f59e0b; color: #000; font-size: 18px; padding: 14px; }
+    .btn-roll:hover { background: #d97706; }
+    .players-list { margin-top: 15px; text-align: left; }
+    .player-chip { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
+    .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; margin-right: 8px; border: 1px solid #fff; }
+    .dice-container { margin: 25px 0; }
+    .dice-val { font-size: 70px; font-weight: 800; color: #f8fafc; line-height: 1; margin: 10px 0; }
+    .turn-indicator { font-size: 16px; margin-bottom: 15px; padding: 8px; border-radius: 6px; background: #334155; }
+    .hidden { display: none !important; }
+  </style>
 </head>
-
 <body>
 
-    <!-- Screen 1: Lobby Section -->
-    <div class="card" id="lobbySection">
-        <h1>🎲 Ludo Multiplayer</h1>
-        <input type="text" id="nameInput" placeholder="Apna Naam Likhein" maxlength="15" />
-        <input type="text" id="roomInput" placeholder="Room Code (e.g. GANG7)" maxlength="10" />
-        <button class="btn-join" onclick="handleJoin()">Room Join / Create Karein</button>
+  <!-- Screen 1: Lobby Section -->
+  <div class="card" id="lobbySection">
+    <h1>🎲 Ludo Multiplayer</h1>
+    <input type="text" id="nameInput" placeholder="Apna Naam Likhein" maxlength="15" />
+    <input type="text" id="roomInput" placeholder="Room Code (e.g. ROOM123)" maxlength="10" />
+    <button class="btn-join" onclick="handleJoin()">Room Join / Create Karein</button>
 
-        <div id="roomDetails" class="hidden">
-            <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
-            <h2 id="roomCodeText">Room Code: -</h2>
-            <div class="players-list" id="playerChips"></div>
-            <button class="btn-start hidden" id="startBtn" onclick="handleStart()">Game Shuru Karein</button>
-        </div>
+    <div id="roomDetails" class="hidden">
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
+      <h2 id="roomCodeText">Room Code: -</h2>
+      <div class="players-list" id="playerChips"></div>
+      <button class="btn-start hidden" id="startBtn" onclick="handleStart()">Game Shuru Karein</button>
+    </div>
+  </div>
+
+  <!-- Screen 2: Game Section -->
+  <div class="card hidden" id="gameSection">
+    <div class="turn-indicator" id="turnDisplay">Turn check ho rahi hai...</div>
+
+    <div class="dice-container">
+      <div>Pasa Result:</div>
+      <div class="dice-val" id="diceResult">-</div>
     </div>
 
-    <!-- Screen 2: Game Section -->
-    <div class="card hidden" id="gameSection">
-        <div class="turn-indicator" id="turnDisplay">Turn check ho rahi hai...</div>
+    <button class="btn-roll" id="rollBtn" onclick="handleRoll()">🎲 Pasa Feko (Roll)</button>
+  </div>
 
-        <div class="dice-container">
-            <div>Pasa Result:</div>
-            <div class="dice-val" id="diceResult">-</div>
-        </div>
+  <script>
+    // Aapka Render Backend Live URL[cite: 2]
+    const SERVER_URL = 'https://ludo-ani.onrender.com';
+    const socket = io(SERVER_URL);
 
-        <button class="btn-roll" id="rollBtn" onclick="handleRoll()">🎲 Pasa Feko (Roll)</button>
-    </div>
+    let activeRoomCode = '';
+    let myPlayerId = '';
 
-    <script>
-        // Local testing ke liye: 'http://localhost:3000'
-        // Render/Live deploy ke baad live link daalein: 'https://your-ludo-app.onrender.com'
-        const SERVER_URL = 'http://localhost:3000';
-        const socket = io(SERVER_URL);
+    socket.on('connect', () => {
+      myPlayerId = socket.id;
+      console.log('Connected to server with ID:', socket.id);
+    });
 
-        let activeRoomCode = '';
-        let myPlayerId = '';
+    function handleJoin() {
+      const name = document.getElementById('nameInput').value;
+      const code = document.getElementById('roomInput').value;
 
-        socket.on('connect', () => {
-            myPlayerId = socket.id;
-        });
+      if (!name.trim() || !code.trim()) {
+        alert('Kripya naam aur room code dono bharein!');
+        return;
+      }
 
-        function handleJoin() {
-            const name = document.getElementById('nameInput').value;
-            const code = document.getElementById('roomInput').value;
+      activeRoomCode = code.toUpperCase();
+      socket.emit('joinRoom', { roomCode: activeRoomCode, playerName: name });
+    }
 
-            if (!name.trim() || !code.trim()) {
-                alert('Kripya naam aur room code dono bharein!');
-                return;
-            }
+    socket.on('roomUpdate', ({ players, roomCode }) => {
+      document.getElementById('roomDetails').classList.remove('hidden');
+      document.getElementById('roomCodeText').innerText = `Room Code: ${roomCode} (${players.length}/4)`;
 
-            activeRoomCode = code;
-            socket.emit('joinRoom', {
-                roomCode: code,
-                playerName: name
-            });
-        }
+      const chipsBox = document.getElementById('playerChips');
+      chipsBox.innerHTML = '';
 
-        socket.on('roomUpdate', ({
-            players,
-            roomCode
-        }) => {
-            document.getElementById('roomDetails').classList.remove('hidden');
-            document.getElementById('roomCodeText').innerText = `Room Code: ${roomCode} (${players.length}/4)`;
+      players.forEach((p) => {
+        const div = document.createElement('div');
+        div.className = 'player-chip';
+        div.style.background = p.colorHex;
+        div.style.color = p.color === 'Yellow' ? '#000' : '#fff';
+        div.innerHTML = `<span><span class="color-dot" style="background:${p.colorHex}"></span>${p.name}</span> <span>${p.color}</span>`;
+        chipsBox.appendChild(div);
+      });
 
-            const chipsBox = document.getElementById('playerChips');
-            chipsBox.innerHTML = '';
+      // Agar kam se kam 2 players hain toh Host Start button dekh sakta hai
+      const startBtn = document.getElementById('startBtn');
+      if (players.length >= 2 && players[0].id === socket.id) {
+        startBtn.classList.remove('hidden');
+      } else {
+        startBtn.classList.add('hidden');
+      }
+    });
 
-            players.forEach((p) => {
-                const div = document.createElement('div');
-                div.className = 'player-chip';
-                div.style.background = p.colorHex;
-                div.style.color = p.color === 'Yellow' ? '#000' : '#fff';
-                div.innerHTML = `<span><span class="color-dot" style="background:${p.colorHex}"></span>${p.name}</span> <span>${p.color}</span>`;
-                chipsBox.appendChild(div);
-            });
+    function handleStart() {
+      socket.emit('startGame', activeRoomCode);
+    }
 
-            // Agar kam se kam 2 players hain toh Host Start button dekh sakta hai
-            const startBtn = document.getElementById('startBtn');
-            if (players.length >= 2 && players[0].id === socket.id) {
-                startBtn.classList.remove('hidden');
-            } else {
-                startBtn.classList.add('hidden');
-            }
-        });
+    socket.on('gameStarted', ({ currentTurn }) => {
+      document.getElementById('lobbySection').classList.add('hidden');
+      document.getElementById('gameSection').classList.remove('hidden');
+      updateTurnStatus(currentTurn);
+    });
 
-        function handleStart() {
-            socket.emit('startGame', activeRoomCode);
-        }
+    function handleRoll() {
+      socket.emit('rollDice', activeRoomCode);
+    }
 
-        socket.on('gameStarted', ({
-            currentTurn
-        }) => {
-            document.getElementById('lobbySection').classList.add('hidden');
-            document.getElementById('gameSection').classList.remove('hidden');
-            updateTurnStatus(currentTurn);
-        });
+    socket.on('diceRolled', ({ rolledBy, value, nextTurn }) => {
+      document.getElementById('diceResult').innerText = value;
+      updateTurnStatus(nextTurn, `${rolledBy.name} ne ${value} laya!`);
+    });
 
-        function handleRoll() {
-            socket.emit('rollDice', activeRoomCode);
-        }
+    function updateTurnStatus(turnPlayer, prefixText = '') {
+      const turnDisplay = document.getElementById('turnDisplay');
+      const isMyTurn = turnPlayer.id === socket.id;
+      const rollBtn = document.getElementById('rollBtn');
 
-        socket.on('diceRolled', ({
-            rolledBy,
-            value,
-            nextTurn
-        }) => {
-            document.getElementById('diceResult').innerText = value;
-            updateTurnStatus(nextTurn, `${rolledBy.name} ne ${value} laya!`);
-        });
+      const statusMsg = prefixText ? `${prefixText} ` : '';
+      turnDisplay.innerHTML = `${statusMsg}Abhi baari hai: <strong style="color:${turnPlayer.colorHex}">${turnPlayer.name} (${turnPlayer.color})</strong>`;
 
-        function updateTurnStatus(turnPlayer, prefixText = '') {
-            const turnDisplay = document.getElementById('turnDisplay');
-            const isMyTurn = turnPlayer.id === socket.id;
-            const rollBtn = document.getElementById('rollBtn');
+      if (isMyTurn) {
+        rollBtn.disabled = false;
+        rollBtn.style.opacity = '1';
+        rollBtn.innerText = '🎲 Aapka Turn Hai! Pasa Feko';
+      } else {
+        rollBtn.disabled = true;
+        rollBtn.style.opacity = '0.5';
+        rollBtn.innerText = `⏳ ${turnPlayer.name} ki turn ka intezar...`;
+      }
+    }
 
-            const statusMsg = prefixText ? `${prefixText} ` : '';
-            turnDisplay.innerHTML = `${statusMsg}Abhi baari hai: <strong style="color:${turnPlayer.colorHex}">${turnPlayer.name} (${turnPlayer.color})</strong>`;
-
-            if (isMyTurn) {
-                rollBtn.disabled = false;
-                rollBtn.style.opacity = '1';
-                rollBtn.innerText = '🎲 Aapka Turn Hai! Pasa Feko';
-            } else {
-                rollBtn.disabled = true;
-                rollBtn.style.opacity = '0.5';
-                rollBtn.innerText = `⏳ ${turnPlayer.name} ki turn ka intezar...`;
-            }
-        }
-
-        socket.on('errorMsg', (msg) => {
-            alert(msg);
-        });
-    </script>
+    socket.on('errorMsg', (msg) => {
+      alert(msg);
+    });
+  </script>
 </body>
-
 </html>
