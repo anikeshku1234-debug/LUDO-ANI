@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Ludo King Style - AI & Multiplayer</title>
+  <title>Ludo King Synchronized</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
@@ -14,7 +14,7 @@
       --bg: #0f172a;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
-    body { background: var(--bg); color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
+    body { background: var(--bg); color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
 
     .menu-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 30px; text-align: center; }
     .menu-card h1 { font-size: 24px; color: #38bdf8; margin-bottom: 20px; }
@@ -24,9 +24,8 @@
     input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 8px; font-size: 15px; }
 
     #gameContainer { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 440px; }
-    .status-panel { width: 100%; background: #1e293b; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
-    
-    /* 15x15 Board */
+    .status-panel { width: 100%; background: #1e293b; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+
     #board {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -42,24 +41,25 @@
     }
     .cell { border: 0.5px solid #cbd5e1; position: relative; display: flex; align-items: center; justify-content: center; }
 
-    /* Quadrant Ghar Layout (Standard Ludo King) */
     .home { display: flex; align-items: center; justify-content: center; position: relative; }
     .home-red { grid-column: 1 / 7; grid-row: 1 / 7; background: var(--red); }
     .home-green { grid-column: 10 / 16; grid-row: 1 / 7; background: var(--green); }
     .home-yellow { grid-column: 10 / 16; grid-row: 10 / 16; background: var(--yellow); }
     .home-blue { grid-column: 1 / 7; grid-row: 10 / 16; background: var(--blue); }
 
-    .home-inner { width: 72%; height: 72%; background: white; border-radius: 14px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 10px; gap: 10px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.2); }
-    .home-slot { background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); }
+    .home-inner { width: 72%; height: 72%; background: white; border-radius: 14px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 8px; gap: 8px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.2); }
+    .home-slot { background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
-    /* Center Triangle */
     .center-box {
       grid-column: 7 / 10;
       grid-row: 7 / 10;
       background: conic-gradient(var(--red) 0deg 90deg, var(--green) 90deg 180deg, var(--yellow) 180deg 270deg, var(--blue) 270deg 360deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     }
 
-    /* Track Paths matching Homes */
     .path-red { background: #fca5a5 !important; }
     .path-green { background: #86efac !important; }
     .path-yellow { background: #fde047 !important; }
@@ -73,10 +73,9 @@
     .safe-star::after { content: '★'; font-size: 16px; font-weight: bold; }
     .cell:not([class*="safe-"]):not([class*="path-"]).safe-star::after { color: #64748b; }
 
-    /* Gotiyan / Tokens */
     .token {
-      width: 78%;
-      height: 78%;
+      width: 80%;
+      height: 80%;
       border-radius: 50%;
       border: 2px solid white;
       box-shadow: 0 3px 6px rgba(0,0,0,0.4);
@@ -84,19 +83,18 @@
       z-index: 10;
       transition: transform 0.15s ease;
     }
-    .token.active-turn { animation: pulse 0.7s infinite alternate; }
-    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.25); box-shadow: 0 0 10px #38bdf8; } }
+    .token.active-turn { animation: pulse 0.6s infinite alternate; }
+    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.3); box-shadow: 0 0 12px #38bdf8; } }
 
     .token-red { background: radial-gradient(circle at 35% 35%, #f87171, #b91c1c); }
     .token-green { background: radial-gradient(circle at 35% 35%, #4ade80, #15803d); }
     .token-yellow { background: radial-gradient(circle at 35% 35%, #fde047, #a16207); }
     .token-blue { background: radial-gradient(circle at 35% 35%, #60a5fa, #1d4ed8); }
 
-    /* Dice Controls */
-    .controls { width: 100%; display: flex; gap: 12px; margin-top: 14px; }
+    .controls { width: 100%; display: flex; gap: 10px; margin-top: 12px; }
     .dice {
-      width: 60px;
-      height: 60px;
+      width: 62px;
+      height: 62px;
       background: white;
       color: #0f172a;
       border-radius: 12px;
@@ -117,9 +115,8 @@
       font-size: 18px;
       font-weight: bold;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(37,99,235,0.4);
     }
-    .roll-btn:disabled { background: #475569; cursor: not-allowed; box-shadow: none; }
+    .roll-btn:disabled { background: #475569; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -145,92 +142,119 @@
     <div id="board"></div>
     <div class="controls">
       <div class="dice" id="diceBox">-</div>
-      <button class="roll-btn" id="diceRollBtn">Pasa Phenkein</button>
+      <button class="roll-btn" id="diceRollBtn" disabled>Pasa Phenkein</button>
     </div>
   </div>
 
   <script>
-    // --- Web Audio API Sounds (No external sound files required) ---
+    // --- LOUDER WEB AUDIO ENGINE (3x Gain Amplification) ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playStepSound() {
-      // "Tuk-Tuk-Tuk" Sound
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(420, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.07);
-      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.07);
+      osc.frequency.setValueAtTime(450, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(140, audioCtx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.07);
+      osc.stop(audioCtx.currentTime + 0.08);
     }
 
     function playDiceSound() {
-      // Dice rattle effect
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         setTimeout(() => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'square';
-          osc.frequency.setValueAtTime(200 + Math.random() * 300, audioCtx.currentTime);
-          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+          osc.frequency.setValueAtTime(250 + Math.random() * 400, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
           osc.connect(gain);
           gain.connect(audioCtx.destination);
           osc.start();
-          osc.stop(audioCtx.currentTime + 0.04);
-        }, i * 50);
+          osc.stop(audioCtx.currentTime + 0.05);
+        }, i * 45);
       }
     }
 
     function playKillSound() {
-      // "Suuuu" slide down when killing a piece
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.35);
-      gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+      osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.45);
+      gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.35);
+      osc.stop(audioCtx.currentTime + 0.45);
     }
 
     function playOutSound() {
-      // Pop sound when token comes out of home on rolling 6
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(650, audioCtx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(750, audioCtx.currentTime + 0.14);
+      gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.14);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.12);
+      osc.stop(audioCtx.currentTime + 0.14);
     }
 
-    // --- Board Coordinates & Ludo Layout ---
-    let socket = null;
-    let isAIMode = false;
-    let currentRoll = 0;
-    let activeTurn = 'red';
+    function playWinHomeSound() {
+      [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+        setTimeout(() => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.18);
+        }, i * 110);
+      });
+    }
 
-    // 52 Step Circular Track
-    const track = [
-      [7,2],[7,3],[7,4],[7,5],[7,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,8],[1,9],[2,9],[3,9],[4,9],[5,9],[6,9],
-      [7,10],[7,11],[7,12],[7,13],[7,14],[7,15],[8,15],[9,15],[9,14],[9,13],[9,12],[9,11],[9,10],[10,9],[11,9],[12,9],[13,9],[14,9],[15,9],
+    // --- BOARD COORDINATES & CORRIDORS ---
+    const commonTrack = [
+      [7,2],[7,3],[7,4],[7,5],[7,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,8],[1,9],
+      [2,9],[3,9],[4,9],[5,9],[6,9],[7,10],[7,11],[7,12],[7,13],[7,14],[7,15],[8,15],
+      [9,15],[9,14],[9,13],[9,12],[9,11],[9,10],[10,9],[11,9],[12,9],[13,9],[14,9],[15,9],
       [15,8],[15,7],[14,7],[13,7],[12,7],[11,7],[10,7],[9,6],[9,5],[9,4],[9,3],[9,2],[9,1],[8,1],[7,1]
     ];
 
-    const START_INDEX = { red: 0, green: 13, yellow: 26, blue: 39 };
+    const homeCorridors = {
+      red:   [[8,2],[8,3],[8,4],[8,5],[8,6]],
+      green: [[2,8],[3,8],[4,8],[5,8],[6,8]],
+      yellow:[[8,14],[8,13],[8,12],[8,11],[8,10]],
+      blue:  [[14,8],[13,8],[12,8],[11,8],[10,8]]
+    };
+
+    const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
     const SAFE_STAR_COORDS = ["7,2", "3,7", "2,9", "7,13", "9,14", "13,9", "14,7", "9,3"];
+
+    function getPlayerCoord(color, step) {
+      if (step < 0) return null;
+      if (step < 51) {
+        const idx = (START_OFFSET[color] + step) % 52;
+        return commonTrack[idx];
+      }
+      if (step >= 51 && step <= 55) {
+        return homeCorridors[color][step - 51];
+      }
+      return 'HOME';
+    }
 
     const board = document.getElementById('board');
     function initBoard() {
@@ -248,18 +272,13 @@
           cell.style.gridRow = r;
           cell.style.gridColumn = c;
 
-          // Safe Spots & Matching Gali Tracks
           if (SAFE_STAR_COORDS.includes(`${r},${c}`)) cell.classList.add('safe-star');
-          
           if (r === 7 && c === 2) cell.classList.add('safe-red');
           if (r === 8 && c >= 2 && c <= 6) cell.classList.add('path-red');
-
           if (r === 2 && c === 9) cell.classList.add('safe-green');
           if (c === 8 && r >= 2 && r <= 6) cell.classList.add('path-green');
-
           if (r === 9 && c === 14) cell.classList.add('safe-yellow');
           if (r === 8 && c >= 10 && c <= 14) cell.classList.add('path-yellow');
-
           if (r === 14 && c === 7) cell.classList.add('safe-blue');
           if (c === 8 && r >= 10 && r <= 14) cell.classList.add('path-blue');
 
@@ -267,7 +286,6 @@
         }
       }
 
-      // Homes (Red, Green, Yellow, Blue in standard clockwise order)
       const homes = [
         { cls: 'home-red', slot: 'r' },
         { cls: 'home-green', slot: 'g' },
@@ -292,151 +310,192 @@
 
       const center = document.createElement('div');
       center.className = 'center-box';
+      center.id = 'centerHome';
       board.appendChild(center);
     }
 
-    const tokens = {
+    // --- GAME STATE & SYNCHRONIZATION ---
+    let socket = null;
+    let isAIMode = false;
+    let myAssignedColor = 'red';
+    let currentActiveColor = 'red';
+    let currentRollValue = 0;
+    let localTokens = {
       red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-      green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
+      green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+      yellow: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
+      blue: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
     };
 
     function renderTokens() {
       document.querySelectorAll('.token').forEach(el => el.remove());
 
-      ['red', 'green'].forEach(color => {
-        tokens[color].forEach((t, i) => {
+      ['red', 'green', 'yellow', 'blue'].forEach(color => {
+        localTokens[color].forEach((t, i) => {
           const tok = document.createElement('div');
           tok.className = `token token-${color}`;
-          if (color === activeTurn && currentRoll > 0) {
-            if (t.step === -1 && currentRoll === 6) tok.classList.add('active-turn');
-            if (t.step !== -1) tok.classList.add('active-turn');
+
+          // Highlight movable piece
+          if (color === currentActiveColor && currentRollValue > 0) {
+            if ((!isAIMode && color === myAssignedColor) || (isAIMode && color === 'red')) {
+              if (t.step === -1 && currentRollValue === 6) tok.classList.add('active-turn');
+              if (t.step !== -1 && t.step + currentRollValue <= 56) tok.classList.add('active-turn');
+            }
           }
 
           if (t.step === -1) {
             const slot = document.getElementById(`home-${color[0]}-${i}`);
             if (slot) slot.appendChild(tok);
+          } else if (t.step === 56) {
+            document.getElementById('centerHome').appendChild(tok);
+            tok.style.transform = 'scale(0.8)';
           } else {
-            const coords = track[t.step % 52];
-            const cell = document.getElementById(`cell-${coords[0]}-${coords[1]}`);
-            if (cell) cell.appendChild(tok);
+            const coords = getPlayerCoord(color, t.step);
+            if (coords) {
+              const cell = document.getElementById(`cell-${coords[0]}-${coords[1]}`);
+              if (cell) cell.appendChild(tok);
+            }
           }
 
-          tok.onclick = () => handleTokenClick(color, i);
+          tok.onclick = () => onTokenClicked(color, i);
         });
       });
     }
 
-    function handleTokenClick(color, index) {
-      if (color !== activeTurn || currentRoll === 0) return;
-      const t = tokens[color][index];
+    function onTokenClicked(color, index) {
+      if (color !== currentActiveColor || currentRollValue === 0) return;
+      if (!isAIMode && color !== myAssignedColor) return;
+
+      if (isAIMode) {
+        handleLocalMove('red', index);
+      } else {
+        socket.emit('moveToken', { tokenIndex: index });
+      }
+    }
+
+    // --- OFFLINE / AI LOGIC ---
+    function handleLocalMove(color, index) {
+      const t = localTokens[color][index];
+      const roll = currentRollValue;
 
       if (t.step === -1) {
-        if (currentRoll === 6) {
-          t.step = START_INDEX[color];
+        if (roll === 6) {
+          t.step = 0;
           playOutSound();
-          renderTokens();
-          finishMove(true);
+          finishLocalMove(true);
         }
-      } else {
-        // Step movement with Tuk-Tuk sound
-        let remaining = currentRoll;
-        const moveInterval = setInterval(() => {
-          t.step = (t.step + 1) % 52;
-          playStepSound();
-          renderTokens();
-          remaining--;
-          if (remaining <= 0) {
-            clearInterval(moveInterval);
-            checkCut(color, t.step);
-            finishMove(currentRoll === 6);
+        return;
+      }
+
+      if (t.step + roll > 56) return;
+
+      let remaining = roll;
+      const timer = setInterval(() => {
+        t.step++;
+        playStepSound();
+        renderTokens();
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          if (t.step === 56) {
+            playWinHomeSound();
+            finishLocalMove(true);
+            return;
           }
-        }, 140);
-      }
-    }
-
-    // Cut / Kill Logic
-    function checkCut(myColor, myStep) {
-      const oppColor = (myColor === 'red') ? 'green' : 'red';
-      const myCoords = `${track[myStep][0]},${track[myStep][1]}`;
-
-      // Star safe check
-      if (SAFE_STAR_COORDS.includes(myCoords)) return;
-
-      tokens[oppColor].forEach(oppTok => {
-        if (oppTok.step !== -1 && (oppTok.step % 52) === myStep) {
-          oppTok.step = -1; // Send home
-          playKillSound();
+          // Cut check
+          let killed = false;
+          const opp = (color === 'red') ? 'green' : 'red';
+          const myCoord = getPlayerCoord(color, t.step);
+          if (t.step < 51 && !SAFE_STAR_COORDS.includes(`${myCoord[0]},${myCoord[1]}`)) {
+            localTokens[opp].forEach(other => {
+              if (other.step >= 0 && other.step < 51) {
+                const otherCoord = getPlayerCoord(opp, other.step);
+                if (otherCoord[0] === myCoord[0] && otherCoord[1] === myCoord[1]) {
+                  other.step = -1;
+                  killed = true;
+                  playKillSound();
+                }
+              }
+            });
+          }
+          finishLocalMove(roll === 6 || killed);
         }
-      });
+      }, 130);
     }
 
-    function finishMove(hasBonus) {
-      currentRoll = 0;
+    function finishLocalMove(bonus) {
+      currentRollValue = 0;
       document.getElementById('diceBox').innerText = '-';
-      if (!hasBonus) {
-        activeTurn = (activeTurn === 'red') ? 'green' : 'red';
+      if (!bonus) {
+        currentActiveColor = (currentActiveColor === 'red') ? 'green' : 'red';
       }
-      updateTurnStatus();
+      updateUI();
 
-      if (isAIMode && activeTurn === 'green') {
+      if (currentActiveColor === 'green') {
         document.getElementById('diceRollBtn').disabled = true;
-        setTimeout(aiTurn, 1000);
+        setTimeout(runAi, 900);
       } else {
         document.getElementById('diceRollBtn').disabled = false;
       }
     }
 
-    function aiTurn() {
+    function runAi() {
       playDiceSound();
       const roll = Math.floor(Math.random() * 6) + 1;
       document.getElementById('diceBox').innerText = roll;
-      currentRoll = roll;
+      currentRollValue = roll;
 
       setTimeout(() => {
-        let chosenIndex = -1;
-        if (roll === 6) {
-          chosenIndex = tokens.green.findIndex(t => t.step === -1);
-        }
-        if (chosenIndex === -1) {
-          chosenIndex = tokens.green.findIndex(t => t.step !== -1);
-        }
+        let idx = localTokens.green.findIndex(t => t.step !== -1 && t.step + roll === 56);
+        if (idx === -1 && roll === 6) idx = localTokens.green.findIndex(t => t.step === -1);
+        if (idx === -1) idx = localTokens.green.findIndex(t => t.step !== -1 && t.step + roll <= 56);
 
-        if (chosenIndex !== -1) {
-          handleTokenClick('green', chosenIndex);
+        if (idx !== -1) {
+          handleLocalMove('green', idx);
         } else {
-          finishMove(false);
+          finishLocalMove(false);
         }
       }, 700);
     }
 
-    function updateTurnStatus() {
-      const indicator = document.getElementById('turnIndicator');
-      const clr = activeTurn === 'red' ? 'var(--red)' : 'var(--green)';
-      indicator.innerHTML = `Baari: <b style="color:${clr}">${activeTurn.toUpperCase()}</b>`;
+    // --- UI UPDATES ---
+    function updateUI() {
+      const ind = document.getElementById('turnIndicator');
+      ind.innerHTML = `Baari: <b style="color:var(--${currentActiveColor})">${currentActiveColor.toUpperCase()}</b>`;
+
+      const isMyTurn = isAIMode ? (currentActiveColor === 'red') : (currentActiveColor === myAssignedColor);
+      document.getElementById('diceRollBtn').disabled = (!isMyTurn || currentRollValue !== 0);
     }
 
+    // Roll Button
     document.getElementById('diceRollBtn').onclick = () => {
-      if (currentRoll !== 0) return;
-      playDiceSound();
-      currentRoll = Math.floor(Math.random() * 6) + 1;
-      document.getElementById('diceBox').innerText = currentRoll;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (currentRollValue !== 0) return;
 
-      const canMove = tokens[activeTurn].some(t => t.step !== -1 || currentRoll === 6);
-      renderTokens();
-      if (!canMove) {
-        setTimeout(() => finishMove(false), 900);
+      if (isAIMode) {
+        playDiceSound();
+        currentRollValue = Math.floor(Math.random() * 6) + 1;
+        document.getElementById('diceBox').innerText = currentRollValue;
+
+        const can = localTokens.red.some(t => (t.step === -1 && currentRollValue === 6) || (t.step !== -1 && t.step + currentRollValue <= 56));
+        renderTokens();
+        if (!can) setTimeout(() => finishLocalMove(false), 900);
+      } else {
+        socket.emit('rollDice');
       }
     };
 
-    // Mode Handlers
+    // --- NAVIGATION MODES ---
     document.getElementById('playAiBtn').onclick = () => {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       isAIMode = true;
       document.getElementById('modeSelect').style.display = 'none';
       document.getElementById('gameContainer').style.display = 'flex';
+      document.getElementById('playerBadge').innerText = 'Aap: RED';
+      document.getElementById('playerBadge').style.color = 'var(--red)';
       initBoard();
       renderTokens();
-      updateTurnStatus();
+      updateUI();
     };
 
     document.getElementById('playOnlineBtn').onclick = () => {
@@ -446,20 +505,56 @@
     };
 
     document.getElementById('joinBtn').onclick = () => {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       const name = document.getElementById('playerName').value.trim();
       const code = document.getElementById('roomCode').value.trim();
-      if (!name || !code) return alert('Dono fields bharein!');
-      
+      if (!name || !code) return alert('Naam aur Room Code dono daalein!');
+
       socket = io();
+
       socket.emit('joinRoom', { playerName: name, roomCode: code });
 
-      socket.on('roomJoined', () => {
+      socket.on('roomJoined', (data) => {
+        myAssignedColor = data.myColor;
         document.getElementById('roomCard').style.display = 'none';
         document.getElementById('gameContainer').style.display = 'flex';
+        document.getElementById('playerBadge').innerText = `Aap: ${data.myColor.toUpperCase()}`;
+        document.getElementById('playerBadge').style.color = `var(--${data.myColor})`;
         initBoard();
-        renderTokens();
-        updateTurnStatus();
       });
+
+      socket.on('diceRolled', ({ roll, canMove }) => {
+        playDiceSound();
+        currentRollValue = roll;
+        document.getElementById('diceBox').innerText = roll;
+        renderTokens();
+      });
+
+      socket.on('tokenMoved', ({ tokens, activeColor, eventType, bonus }) => {
+        localTokens = tokens;
+        currentRollValue = 0;
+        currentActiveColor = activeColor;
+        document.getElementById('diceBox').innerText = '-';
+
+        if (eventType === 'out') playOutSound();
+        else if (eventType === 'kill') playKillSound();
+        else if (eventType === 'home') playWinHomeSound();
+        else playStepSound();
+
+        renderTokens();
+        updateUI();
+      });
+
+      socket.on('syncState', (state) => {
+        localTokens = state.tokens;
+        currentActiveColor = state.activeColor;
+        currentRollValue = state.currentRoll;
+        if (state.currentRoll === 0) document.getElementById('diceBox').innerText = '-';
+        renderTokens();
+        updateUI();
+      });
+
+      socket.on('gameError', (msg) => alert(msg));
     };
   </script>
 </body>
