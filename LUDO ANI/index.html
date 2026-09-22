@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Ludo King Synchronized</title>
+  <title>Ludo Multiplayer Realtime</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
@@ -16,16 +16,24 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
     body { background: var(--bg); color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
 
-    .menu-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 30px; text-align: center; }
-    .menu-card h1 { font-size: 24px; color: #38bdf8; margin-bottom: 20px; }
-    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 12px; transition: 0.2s; }
-    .btn-ai { background: #10b981; color: white; }
-    .btn-multi { background: #0284c7; color: white; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 25px; text-align: center; }
+    h1 { font-size: 24px; color: #38bdf8; margin-bottom: 16px; }
     input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 8px; font-size: 15px; }
+    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+    .btn-create { background: #10b981; color: white; }
+    .btn-join { background: #0284c7; color: white; }
+    .btn-start { background: #f59e0b; color: white; font-size: 18px; margin-top: 15px; }
+    .btn-start:disabled { background: #475569; cursor: not-allowed; }
 
-    #gameContainer { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 440px; }
-    .status-panel { width: 100%; background: #1e293b; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+    /* Player List in Lobby */
+    .player-list { list-style: none; margin: 15px 0; text-align: left; }
+    .player-item { padding: 10px 14px; background: #0f172a; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; border-left: 6px solid #64748b; }
 
+    /* Active Game Area */
+    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 440px; }
+    .status-panel { width: 100%; background: #1e293b; border: 1px solid #334155; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+
+    /* 15x15 Ludo Board */
     #board {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -57,7 +65,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      position: relative;
     }
 
     .path-red { background: #fca5a5 !important; }
@@ -65,10 +72,10 @@
     .path-yellow { background: #fde047 !important; }
     .path-blue { background: #93c5fd !important; }
 
-    .safe-red { background: var(--red) !important; color: white; }
-    .safe-green { background: var(--green) !important; color: white; }
-    .safe-yellow { background: var(--yellow) !important; color: white; }
-    .safe-blue { background: var(--blue) !important; color: white; }
+    .safe-red { background: var(--red) !important; }
+    .safe-green { background: var(--green) !important; }
+    .safe-yellow { background: var(--yellow) !important; }
+    .safe-blue { background: var(--blue) !important; }
 
     .safe-star::after { content: '★'; font-size: 16px; font-weight: bold; }
     .cell:not([class*="safe-"]):not([class*="path-"]).safe-star::after { color: #64748b; }
@@ -91,8 +98,9 @@
     .token-yellow { background: radial-gradient(circle at 35% 35%, #fde047, #a16207); }
     .token-blue { background: radial-gradient(circle at 35% 35%, #60a5fa, #1d4ed8); }
 
+    /* Dice Control Strip */
     .controls { width: 100%; display: flex; gap: 10px; margin-top: 12px; }
-    .dice {
+    .dice-val {
       width: 62px;
       height: 62px;
       background: white;
@@ -104,129 +112,130 @@
       font-size: 32px;
       font-weight: 900;
       border: 3px solid #38bdf8;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-    .roll-btn {
+
+    /* DYNAMIC BUTTON STYLES: GREEN ON MY TURN, WHITE ON OPPONENT TURN */
+    .btn-dice {
       flex: 1;
-      background: #2563eb;
-      color: white;
-      border: none;
+      height: 62px;
       border-radius: 12px;
       font-size: 18px;
-      font-weight: bold;
+      font-weight: 900;
+      border: 2px solid #cbd5e1;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .btn-dice.my-turn {
+      background: #22c55e !important;
+      color: #ffffff !important;
+      border: 2px solid #16a34a !important;
+      box-shadow: 0 0 16px rgba(34, 197, 94, 0.6);
       cursor: pointer;
     }
-    .roll-btn:disabled { background: #475569; cursor: not-allowed; }
+    .btn-dice.other-turn {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border: 2px solid #94a3b8 !important;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
 
-  <div class="menu-card" id="modeSelect">
-    <h1>Ludo King Edition</h1>
-    <button class="btn btn-ai" id="playAiBtn">🤖 Computer / AI Ke Saath</button>
-    <button class="btn btn-multi" id="playOnlineBtn">👥 Friends / Room Ke Saath</button>
+  <!-- Entry View: Separate Create & Join -->
+  <div class="card" id="menuView">
+    <h1>Ludo Multiplayer</h1>
+    <input type="text" id="nameInput" placeholder="Apna Naam Likhein" />
+    <button class="btn btn-create" id="btnCreateRoom">🏠 Room Banayein (Host)</button>
+    
+    <div style="margin: 12px 0; color: #94a3b8;">— YA DUSRE KA ROOM JOIN KAREIN —</div>
+    <input type="text" id="codeInput" placeholder="4-Digit Room Code" />
+    <button class="btn btn-join" id="btnJoinRoom">🔑 Room Join Karein</button>
   </div>
 
-  <div class="menu-card" id="roomCard" style="display: none;">
-    <h1>Room Setup</h1>
-    <input type="text" id="playerName" placeholder="Apna Naam Likhein" />
-    <input type="text" id="roomCode" placeholder="Room Code (jaise 777)" />
-    <button class="btn btn-multi" id="joinBtn">Room Banayein / Judien</button>
+  <!-- Waiting Lobby -->
+  <div class="card" id="lobbyView" style="display: none;">
+    <h1>Room Code: <span id="lobbyCode" style="color:#38bdf8;"></span></h1>
+    <p style="color:#94a3b8; font-size:14px;">Dost ko yeh Code share karein (2 se 4 players)</p>
+    <ul class="player-list" id="playerList"></ul>
+    <button class="btn btn-start" id="btnStartGame" style="display: none;" disabled>Game Shuru Karein (Min 2)</button>
+    <p id="waitingMsg" style="color:#cbd5e1; font-size:14px; margin-top:10px; display:none;">Host ke game start karne ka intezar...</p>
   </div>
 
-  <div id="gameContainer">
+  <!-- Active Ludo Board -->
+  <div id="gameArea">
     <div class="status-panel">
-      <span id="turnIndicator">Baari: ...</span>
-      <span id="playerBadge" style="font-weight:bold;"></span>
+      <span id="turnLabel">Baari: ...</span>
+      <span id="myBadge" style="font-weight:bold;"></span>
     </div>
     <div id="board"></div>
     <div class="controls">
-      <div class="dice" id="diceBox">-</div>
-      <button class="roll-btn" id="diceRollBtn" disabled>Pasa Phenkein</button>
+      <div class="dice-val" id="diceBox">-</div>
+      <button class="btn-dice other-turn" id="rollBtn" disabled>Pasa Phenkein</button>
     </div>
   </div>
 
   <script>
-    // --- LOUDER WEB AUDIO ENGINE (3x Gain Amplification) ---
+    // --- LOUDER WEB AUDIO ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function playStepSound() {
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(450, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(140, audioCtx.currentTime + 0.08);
-      gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.08);
-    }
 
-    function playDiceSound() {
-      for (let i = 0; i < 6; i++) {
-        setTimeout(() => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'square';
-          osc.frequency.setValueAtTime(250 + Math.random() * 400, audioCtx.currentTime);
-          gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.05);
-        }, i * 45);
+      if (type === 'step') { // Tuk-tuk
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(460, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+      } else if (type === 'dice') { // Dice Roll
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(220 + Math.random() * 380, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.05);
+          }, i * 45);
+        }
+      } else if (type === 'kill') { // Suuuu slide
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.45);
+        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.45);
+      } else if (type === 'out') { // Pop out
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(750, audioCtx.currentTime + 0.14);
+        gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.14);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.14);
+      } else if (type === 'home') { // Win fanfare
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+          setTimeout(() => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'triangle'; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.9, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.18);
+          }, i * 110);
+        });
       }
     }
 
-    function playKillSound() {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.45);
-      gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.45);
-    }
-
-    function playOutSound() {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(320, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(750, audioCtx.currentTime + 0.14);
-      gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.14);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.14);
-    }
-
-    function playWinHomeSound() {
-      [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-        setTimeout(() => {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-          gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          osc.stop(audioCtx.currentTime + 0.18);
-        }, i * 110);
-      });
-    }
-
-    // --- BOARD COORDINATES & CORRIDORS ---
+    // --- BOARD COORDINATES ---
     const commonTrack = [
       [7,2],[7,3],[7,4],[7,5],[7,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,8],[1,9],
       [2,9],[3,9],[4,9],[5,9],[6,9],[7,10],[7,11],[7,12],[7,13],[7,14],[7,15],[8,15],
@@ -246,31 +255,24 @@
 
     function getPlayerCoord(color, step) {
       if (step < 0) return null;
-      if (step < 51) {
-        const idx = (START_OFFSET[color] + step) % 52;
-        return commonTrack[idx];
-      }
-      if (step >= 51 && step <= 55) {
-        return homeCorridors[color][step - 51];
-      }
+      if (step < 51) return commonTrack[(START_OFFSET[color] + step) % 52];
+      if (step <= 55) return homeCorridors[color][step - 51];
       return 'HOME';
     }
 
-    const board = document.getElementById('board');
     function initBoard() {
+      const board = document.getElementById('board');
       board.innerHTML = '';
       for (let r = 1; r <= 15; r++) {
         for (let c = 1; c <= 15; c++) {
           if ((r <= 6 && c <= 6) || (r <= 6 && c >= 10) || 
               (r >= 10 && c <= 6) || (r >= 10 && c >= 10) || 
-              (r >= 7 && r <= 9 && c >= 7 && c <= 9)) {
-            continue;
-          }
+              (r >= 7 && r <= 9 && c >= 7 && c <= 9)) continue;
+
           const cell = document.createElement('div');
           cell.className = 'cell';
           cell.id = `cell-${r}-${c}`;
-          cell.style.gridRow = r;
-          cell.style.gridColumn = c;
+          cell.style.gridRow = r; cell.style.gridColumn = c;
 
           if (SAFE_STAR_COORDS.includes(`${r},${c}`)) cell.classList.add('safe-star');
           if (r === 7 && c === 2) cell.classList.add('safe-red');
@@ -287,12 +289,9 @@
       }
 
       const homes = [
-        { cls: 'home-red', slot: 'r' },
-        { cls: 'home-green', slot: 'g' },
-        { cls: 'home-yellow', slot: 'y' },
-        { cls: 'home-blue', slot: 'b' }
+        { cls: 'home-red', slot: 'r' }, { cls: 'home-green', slot: 'g' },
+        { cls: 'home-yellow', slot: 'y' }, { cls: 'home-blue', slot: 'b' }
       ];
-
       homes.forEach(h => {
         const homeDiv = document.createElement('div');
         homeDiv.className = `home ${h.cls}`;
@@ -300,8 +299,7 @@
         inner.className = 'home-inner';
         for (let i = 0; i < 4; i++) {
           const slot = document.createElement('div');
-          slot.className = 'home-slot';
-          slot.id = `home-${h.slot}-${i}`;
+          slot.className = 'home-slot'; slot.id = `home-${h.slot}-${i}`;
           inner.appendChild(slot);
         }
         homeDiv.appendChild(inner);
@@ -309,17 +307,17 @@
       });
 
       const center = document.createElement('div');
-      center.className = 'center-box';
-      center.id = 'centerHome';
+      center.className = 'center-box'; center.id = 'centerHome';
       board.appendChild(center);
     }
 
-    // --- GAME STATE & SYNCHRONIZATION ---
-    let socket = null;
-    let isAIMode = false;
-    let myAssignedColor = 'red';
+    // --- GAME STATE ---
+    const socket = io();
+    let isHost = false;
+    let myColor = 'red';
     let currentActiveColor = 'red';
-    let currentRollValue = 0;
+    let currentRoll = 0;
+    let roomPlayers = [];
     let localTokens = {
       red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
       green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
@@ -330,17 +328,16 @@
     function renderTokens() {
       document.querySelectorAll('.token').forEach(el => el.remove());
 
-      ['red', 'green', 'yellow', 'blue'].forEach(color => {
+      roomPlayers.forEach(p => {
+        const color = p.color;
         localTokens[color].forEach((t, i) => {
           const tok = document.createElement('div');
           tok.className = `token token-${color}`;
 
-          // Highlight movable piece
-          if (color === currentActiveColor && currentRollValue > 0) {
-            if ((!isAIMode && color === myAssignedColor) || (isAIMode && color === 'red')) {
-              if (t.step === -1 && currentRollValue === 6) tok.classList.add('active-turn');
-              if (t.step !== -1 && t.step + currentRollValue <= 56) tok.classList.add('active-turn');
-            }
+          // Pulsing glow if token can be moved
+          if (color === currentActiveColor && color === myColor && currentRoll > 0) {
+            if (t.step === -1 && currentRoll === 6) tok.classList.add('active-turn');
+            if (t.step !== -1 && t.step + currentRoll <= 56) tok.classList.add('active-turn');
           }
 
           if (t.step === -1) {
@@ -357,205 +354,160 @@
             }
           }
 
-          tok.onclick = () => onTokenClicked(color, i);
+          tok.onclick = () => {
+            if (color === myColor && color === currentActiveColor && currentRoll > 0) {
+              socket.emit('moveToken', { tokenIndex: i });
+            }
+          };
         });
       });
     }
 
-    function onTokenClicked(color, index) {
-      if (color !== currentActiveColor || currentRollValue === 0) return;
-      if (!isAIMode && color !== myAssignedColor) return;
+    // --- DYNAMIC BUTTON & TURN CONTROLLER ---
+    function updateTurnControls() {
+      const activeP = roomPlayers.find(p => p.color === currentActiveColor);
+      const isMyTurn = (currentActiveColor === myColor);
 
-      if (isAIMode) {
-        handleLocalMove('red', index);
+      const rollBtn = document.getElementById('rollBtn');
+      const turnLabel = document.getElementById('turnLabel');
+
+      if (isMyTurn) {
+        turnLabel.innerHTML = `Baari: <b style="color:var(--${myColor})">AAPKI HAI!</b>`;
+        // GREEN WHEN MY TURN
+        rollBtn.className = 'btn-dice my-turn';
+        rollBtn.disabled = (currentRoll !== 0);
+        rollBtn.innerText = (currentRoll === 0) ? '🎲 Pasa Phenkein' : 'Goti Chunein!';
       } else {
-        socket.emit('moveToken', { tokenIndex: index });
+        turnLabel.innerHTML = `Baari: <b style="color:var(--${currentActiveColor})">${activeP ? activeP.name : ''} (${currentActiveColor.toUpperCase()})</b>`;
+        // WHITE WHEN OPPONENT TURN
+        rollBtn.className = 'btn-dice other-turn';
+        rollBtn.disabled = true;
+        rollBtn.innerText = `⏳ ${activeP ? activeP.name : 'Dost'} Ki Baari...`;
       }
     }
 
-    // --- OFFLINE / AI LOGIC ---
-    function handleLocalMove(color, index) {
-      const t = localTokens[color][index];
-      const roll = currentRollValue;
+    // --- EVENT LISTENERS ---
+    document.getElementById('btnCreateRoom').onclick = () => {
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) return alert('Kripya apna naam likhein!');
+      socket.emit('createRoom', { playerName: name });
+    };
 
-      if (t.step === -1) {
-        if (roll === 6) {
-          t.step = 0;
-          playOutSound();
-          finishLocalMove(true);
-        }
-        return;
-      }
+    document.getElementById('btnJoinRoom').onclick = () => {
+      const name = document.getElementById('nameInput').value.trim();
+      const code = document.getElementById('codeInput').value.trim();
+      if (!name || !code) return alert('Naam aur 4-digit code dono bharein!');
+      socket.emit('joinRoom', { playerName: name, roomCode: code });
+    };
 
-      if (t.step + roll > 56) return;
+    document.getElementById('btnStartGame').onclick = () => {
+      socket.emit('startGame');
+    };
 
-      let remaining = roll;
-      const timer = setInterval(() => {
-        t.step++;
-        playStepSound();
-        renderTokens();
-        remaining--;
-        if (remaining <= 0) {
-          clearInterval(timer);
-          if (t.step === 56) {
-            playWinHomeSound();
-            finishLocalMove(true);
-            return;
-          }
-          // Cut check
-          let killed = false;
-          const opp = (color === 'red') ? 'green' : 'red';
-          const myCoord = getPlayerCoord(color, t.step);
-          if (t.step < 51 && !SAFE_STAR_COORDS.includes(`${myCoord[0]},${myCoord[1]}`)) {
-            localTokens[opp].forEach(other => {
-              if (other.step >= 0 && other.step < 51) {
-                const otherCoord = getPlayerCoord(opp, other.step);
-                if (otherCoord[0] === myCoord[0] && otherCoord[1] === myCoord[1]) {
-                  other.step = -1;
-                  killed = true;
-                  playKillSound();
-                }
-              }
-            });
-          }
-          finishLocalMove(roll === 6 || killed);
-        }
-      }, 130);
-    }
-
-    function finishLocalMove(bonus) {
-      currentRollValue = 0;
-      document.getElementById('diceBox').innerText = '-';
-      if (!bonus) {
-        currentActiveColor = (currentActiveColor === 'red') ? 'green' : 'red';
-      }
-      updateUI();
-
-      if (currentActiveColor === 'green') {
-        document.getElementById('diceRollBtn').disabled = true;
-        setTimeout(runAi, 900);
-      } else {
-        document.getElementById('diceRollBtn').disabled = false;
-      }
-    }
-
-    function runAi() {
-      playDiceSound();
-      const roll = Math.floor(Math.random() * 6) + 1;
-      document.getElementById('diceBox').innerText = roll;
-      currentRollValue = roll;
-
-      setTimeout(() => {
-        let idx = localTokens.green.findIndex(t => t.step !== -1 && t.step + roll === 56);
-        if (idx === -1 && roll === 6) idx = localTokens.green.findIndex(t => t.step === -1);
-        if (idx === -1) idx = localTokens.green.findIndex(t => t.step !== -1 && t.step + roll <= 56);
-
-        if (idx !== -1) {
-          handleLocalMove('green', idx);
-        } else {
-          finishLocalMove(false);
-        }
-      }, 700);
-    }
-
-    // --- UI UPDATES ---
-    function updateUI() {
-      const ind = document.getElementById('turnIndicator');
-      ind.innerHTML = `Baari: <b style="color:var(--${currentActiveColor})">${currentActiveColor.toUpperCase()}</b>`;
-
-      const isMyTurn = isAIMode ? (currentActiveColor === 'red') : (currentActiveColor === myAssignedColor);
-      document.getElementById('diceRollBtn').disabled = (!isMyTurn || currentRollValue !== 0);
-    }
-
-    // Roll Button
-    document.getElementById('diceRollBtn').onclick = () => {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      if (currentRollValue !== 0) return;
-
-      if (isAIMode) {
-        playDiceSound();
-        currentRollValue = Math.floor(Math.random() * 6) + 1;
-        document.getElementById('diceBox').innerText = currentRollValue;
-
-        const can = localTokens.red.some(t => (t.step === -1 && currentRollValue === 6) || (t.step !== -1 && t.step + currentRollValue <= 56));
-        renderTokens();
-        if (!can) setTimeout(() => finishLocalMove(false), 900);
-      } else {
+    document.getElementById('rollBtn').onclick = () => {
+      if (currentActiveColor === myColor && currentRoll === 0) {
         socket.emit('rollDice');
       }
     };
 
-    // --- NAVIGATION MODES ---
-    document.getElementById('playAiBtn').onclick = () => {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      isAIMode = true;
-      document.getElementById('modeSelect').style.display = 'none';
-      document.getElementById('gameContainer').style.display = 'flex';
-      document.getElementById('playerBadge').innerText = 'Aap: RED';
-      document.getElementById('playerBadge').style.color = 'var(--red)';
+    // --- SOCKET HANDLERS ---
+    socket.on('roomCreated', (data) => {
+      isHost = true;
+      myColor = data.myColor;
+      showLobby(data.roomCode, data.players);
+    });
+
+    socket.on('roomJoinedSuccess', (data) => {
+      isHost = false;
+      myColor = data.myColor;
+      showLobby(data.roomCode, data.players);
+    });
+
+    socket.on('lobbyUpdate', (data) => {
+      updateLobby(data.players, data.hostId);
+    });
+
+    function showLobby(code, players) {
+      document.getElementById('menuView').style.display = 'none';
+      document.getElementById('lobbyView').style.display = 'block';
+      document.getElementById('lobbyCode').innerText = code;
+      updateLobby(players, socket.id);
+    }
+
+    function updateLobby(players, hostId) {
+      roomPlayers = players;
+      const list = document.getElementById('playerList');
+      list.innerHTML = '';
+
+      players.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'player-item';
+        li.style.borderLeftColor = `var(--${p.color})`;
+        li.innerHTML = `<span>${p.name} ${p.id === socket.id ? '(Aap)' : ''}</span><span style="color:var(--${p.color})">${p.color.toUpperCase()}</span>`;
+        list.appendChild(li);
+      });
+
+      const startBtn = document.getElementById('btnStartGame');
+      const waitMsg = document.getElementById('waitingMsg');
+
+      if (socket.id === hostId) {
+        startBtn.style.display = 'block';
+        waitMsg.style.display = 'none';
+        startBtn.disabled = (players.length < 2);
+        startBtn.innerText = players.length < 2 ? 'Kam se kam 2 players chahiye...' : `Game Shuru Karein (${players.length} Players)`;
+      } else {
+        startBtn.style.display = 'none';
+        waitMsg.style.display = 'block';
+      }
+    }
+
+    socket.on('gameStarted', (data) => {
+      roomPlayers = data.players;
+      localTokens = data.tokens;
+      currentActiveColor = data.activeColor;
+      currentRoll = 0;
+
+      document.getElementById('lobbyView').style.display = 'none';
+      document.getElementById('gameArea').style.display = 'flex';
+
+      const myBadge = document.getElementById('myBadge');
+      myBadge.innerText = `Aap: ${myColor.toUpperCase()}`;
+      myBadge.style.color = `var(--${myColor})`;
+
       initBoard();
       renderTokens();
-      updateUI();
-    };
+      updateTurnControls();
+    });
 
-    document.getElementById('playOnlineBtn').onclick = () => {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      document.getElementById('modeSelect').style.display = 'none';
-      document.getElementById('roomCard').style.display = 'block';
-    };
+    socket.on('diceRolled', ({ roll, activeColor, canMove }) => {
+      playSound('dice');
+      currentRoll = roll;
+      document.getElementById('diceBox').innerText = roll;
+      renderTokens();
+      updateTurnControls();
+    });
 
-    document.getElementById('joinBtn').onclick = () => {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const name = document.getElementById('playerName').value.trim();
-      const code = document.getElementById('roomCode').value.trim();
-      if (!name || !code) return alert('Naam aur Room Code dono daalein!');
+    socket.on('turnChanged', ({ activeColor, tokens }) => {
+      currentActiveColor = activeColor;
+      currentRoll = 0;
+      localTokens = tokens;
+      document.getElementById('diceBox').innerText = '-';
+      renderTokens();
+      updateTurnControls();
+    });
 
-      socket = io();
+    socket.on('tokenMoved', ({ tokens, activeColor, eventType }) => {
+      localTokens = tokens;
+      currentActiveColor = activeColor;
+      currentRoll = 0;
+      document.getElementById('diceBox').innerText = '-';
 
-      socket.emit('joinRoom', { playerName: name, roomCode: code });
+      playSound(eventType);
+      renderTokens();
+      updateTurnControls();
+    });
 
-      socket.on('roomJoined', (data) => {
-        myAssignedColor = data.myColor;
-        document.getElementById('roomCard').style.display = 'none';
-        document.getElementById('gameContainer').style.display = 'flex';
-        document.getElementById('playerBadge').innerText = `Aap: ${data.myColor.toUpperCase()}`;
-        document.getElementById('playerBadge').style.color = `var(--${data.myColor})`;
-        initBoard();
-      });
-
-      socket.on('diceRolled', ({ roll, canMove }) => {
-        playDiceSound();
-        currentRollValue = roll;
-        document.getElementById('diceBox').innerText = roll;
-        renderTokens();
-      });
-
-      socket.on('tokenMoved', ({ tokens, activeColor, eventType, bonus }) => {
-        localTokens = tokens;
-        currentRollValue = 0;
-        currentActiveColor = activeColor;
-        document.getElementById('diceBox').innerText = '-';
-
-        if (eventType === 'out') playOutSound();
-        else if (eventType === 'kill') playKillSound();
-        else if (eventType === 'home') playWinHomeSound();
-        else playStepSound();
-
-        renderTokens();
-        updateUI();
-      });
-
-      socket.on('syncState', (state) => {
-        localTokens = state.tokens;
-        currentActiveColor = state.activeColor;
-        currentRollValue = state.currentRoll;
-        if (state.currentRoll === 0) document.getElementById('diceBox').innerText = '-';
-        renderTokens();
-        updateUI();
-      });
-
-      socket.on('gameError', (msg) => alert(msg));
-    };
+    socket.on('gameError', (msg) => alert(msg));
   </script>
 </body>
 </html>
