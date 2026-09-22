@@ -3,153 +3,198 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Multiplayer Ludo Room</title>
+  <title>Multiplayer Ludo Online</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background-color: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 15px; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 420px; padding: 25px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); text-align: center; }
-    h1 { font-size: 24px; margin-bottom: 20px; color: #38bdf8; }
-    h2 { font-size: 18px; margin-bottom: 15px; }
-    input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: white; font-size: 16px; outline: none; }
-    input:focus { border-color: #38bdf8; }
-    button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s ease; margin-top: 6px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 15px; }
+    
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 440px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    h1 { font-size: 24px; margin-bottom: 15px; color: #38bdf8; text-align: center; }
+    input { width: 100%; padding: 12px; margin-bottom: 10px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 6px; font-size: 15px; }
+    button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     .btn-join { background: #0284c7; color: white; }
     .btn-join:hover { background: #0369a1; }
-    .btn-start { background: #16a34a; color: white; margin-top: 15px; }
-    .btn-start:hover { background: #15803d; }
-    .btn-roll { background: #f59e0b; color: #000; font-size: 18px; padding: 14px; }
-    .btn-roll:hover { background: #d97706; }
-    .players-list { margin-top: 15px; text-align: left; }
-    .player-chip { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
-    .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; margin-right: 8px; border: 1px solid #fff; }
-    .dice-container { margin: 25px 0; }
-    .dice-val { font-size: 70px; font-weight: 800; color: #f8fafc; line-height: 1; margin: 10px 0; }
-    .turn-indicator { font-size: 16px; margin-bottom: 15px; padding: 8px; border-radius: 6px; background: #334155; }
-    .hidden { display: none !important; }
+    
+    /* Board Styling */
+    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 440px; }
+    .status-bar { background: #1e293b; padding: 12px; border-radius: 8px; width: 100%; margin-bottom: 12px; border: 1px solid #334155; font-size: 14px; text-align: center; }
+    
+    #board {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      grid-template-rows: repeat(15, 1fr);
+      background: #ffffff;
+      border: 3px solid #334155;
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .cell { border: 0.5px solid #cbd5e1; position: relative; display: flex; align-items: center; justify-content: center; }
+    
+    /* Quadrants (Homes) */
+    .home-red { grid-column: 1 / 7; grid-row: 1 / 7; background: #ef4444; border: 12px solid #fee2e2; border-radius: 6px 0 0 0; }
+    .home-green { grid-column: 10 / 16; grid-row: 1 / 7; background: #22c55e; border: 12px solid #dcfce7; border-radius: 0 6px 0 0; }
+    .home-yellow { grid-column: 10 / 16; grid-row: 10 / 16; background: #eab308; border: 12px solid #fef9c3; border-radius: 0 0 6px 0; }
+    .home-blue { grid-column: 1 / 7; grid-row: 10 / 16; background: #3b82f6; border: 12px solid #dbeafe; border-radius: 0 0 0 6px; }
+    .center-box { grid-column: 7 / 10; grid-row: 7 / 10; background: conic-gradient(#ef4444 0deg 90deg, #22c55e 90deg 180deg, #eab308 180deg 270deg, #3b82f6 270deg 360deg); }
+
+    /* Colored Tracks */
+    .cell.path-red { background: #fee2e2; }
+    .cell.path-green { background: #dcfce7; }
+    .cell.path-yellow { background: #fef9c3; }
+    .cell.path-blue { background: #dbeafe; }
+    .cell.safe-red { background: #ef4444 !important; }
+    .cell.safe-green { background: #22c55e !important; }
+    .cell.safe-yellow { background: #eab308 !important; }
+    .cell.safe-blue { background: #3b82f6 !important; }
+
+    /* Tokens */
+    .token {
+      width: 75%;
+      height: 75%;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+      z-index: 2;
+    }
+    .token.red { background: #dc2626; }
+    .token.green { background: #16a34a; }
+    .token.yellow { background: #ca8a04; }
+    .token.blue { background: #2563eb; }
+
+    /* Control Panel */
+    .controls { width: 100%; display: flex; gap: 10px; margin-top: 15px; align-items: center; }
+    .dice-box {
+      flex: 1;
+      height: 52px;
+      background: #334155;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 900;
+      color: #38bdf8;
+    }
+    .btn-roll {
+      flex: 2;
+      height: 52px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .btn-roll:disabled { background: #475569; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-  <!-- Screen 1: Lobby Section -->
-  <div class="card" id="lobbySection">
-    <h1>🎲 Ludo Multiplayer</h1>
-    <input type="text" id="nameInput" placeholder="Apna Naam Likhein" maxlength="15" />
-    <input type="text" id="roomInput" placeholder="Room Code (e.g. ROOM123)" maxlength="10" />
-    <button class="btn-join" onclick="handleJoin()">Room Join / Create Karein</button>
-
-    <div id="roomDetails" class="hidden">
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;" />
-      <h2 id="roomCodeText">Room Code: -</h2>
-      <div class="players-list" id="playerChips"></div>
-      <button class="btn-start hidden" id="startBtn" onclick="handleStart()">Game Shuru Karein</button>
-    </div>
+  <!-- Join Room Section -->
+  <div class="card" id="joinCard">
+    <h1>Multiplayer Ludo</h1>
+    <input type="text" id="playerName" placeholder="Apna Naam Likhein" />
+    <input type="text" id="roomCode" placeholder="Room Code (eg. 1234)" />
+    <button class="btn-join" id="joinBtn">Room Join / Create Karein</button>
   </div>
 
-  <!-- Screen 2: Game Section -->
-  <div class="card hidden" id="gameSection">
-    <div class="turn-indicator" id="turnDisplay">Turn check ho rahi hai...</div>
-
-    <div class="dice-container">
-      <div>Pasa Result:</div>
-      <div class="dice-val" id="diceResult">-</div>
+  <!-- Game Board Section -->
+  <div id="gameArea">
+    <div class="status-bar" id="statusBar">Intezar ho raha hai...</div>
+    <div id="board"></div>
+    <div class="controls">
+      <div class="dice-box" id="diceDisplay">-</div>
+      <button class="btn-roll" id="rollBtn" disabled>Pasa Phenkein</button>
     </div>
-
-    <button class="btn-roll" id="rollBtn" onclick="handleRoll()">🎲 Pasa Feko (Roll)</button>
   </div>
 
   <script>
-    // Aapka Render Backend Live URL[cite: 2]
-    const SERVER_URL = 'https://ludo-ani-qpmx.onrender.com';
-    const socket = io(SERVER_URL);
+    const socket = io();
+    let currentTurnId = null;
 
-    let activeRoomCode = '';
-    let myPlayerId = '';
+    // Build Ludo Board Grid (15x15)
+    const boardEl = document.getElementById('board');
+    for (let r = 1; r <= 15; r++) {
+      for (let c = 1; c <= 15; c++) {
+        // Skip quadrant interior and center
+        if ((r <= 6 && c <= 6) || (r <= 6 && c >= 10) || 
+            (r >= 10 && c <= 6) || (r >= 10 && c >= 10) || 
+            (r >= 7 && r <= 9 && c >= 7 && c <= 9)) {
+          continue;
+        }
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.gridRow = r;
+        cell.style.gridColumn = c;
 
-    socket.on('connect', () => {
-      myPlayerId = socket.id;
-      console.log('Connected to server with ID:', socket.id);
+        // Path Highlights
+        if (r === 8 && c >= 2 && c <= 6) cell.classList.add('safe-red');
+        if (c === 8 && r >= 2 && r <= 6) cell.classList.add('safe-green');
+        if (r === 8 && c >= 10 && c <= 14) cell.classList.add('safe-yellow');
+        if (c === 8 && r >= 10 && r <= 14) cell.classList.add('safe-blue');
+        if (r === 7 && c === 2) cell.classList.add('safe-red');
+        if (r === 2 && c === 9) cell.classList.add('safe-green');
+        if (r === 9 && c === 14) cell.classList.add('safe-yellow');
+        if (r === 14 && c === 7) cell.classList.add('safe-blue');
+
+        boardEl.appendChild(cell);
+      }
+    }
+
+    // Append 4 Quadrants & Center Box
+    ['home-red', 'home-green', 'home-yellow', 'home-blue', 'center-box'].forEach(className => {
+      const box = document.createElement('div');
+      box.className = className;
+      boardEl.appendChild(box);
     });
 
-    function handleJoin() {
-      const name = document.getElementById('nameInput').value;
-      const code = document.getElementById('roomInput').value;
+    // Event Handlers
+    document.getElementById('joinBtn').addEventListener('click', () => {
+      const name = document.getElementById('playerName').value.trim();
+      const room = document.getElementById('roomCode').value.trim();
+      if (!name || !room) return alert('Dono fields bharein!');
+      socket.emit('joinRoom', { playerName: name, roomCode: room });
+    });
 
-      if (!name.trim() || !code.trim()) {
-        alert('Kripya naam aur room code dono bharein!');
-        return;
+    document.getElementById('rollBtn').addEventListener('click', () => {
+      socket.emit('rollDice');
+    });
+
+    // Socket Listeners
+    socket.on('roomJoined', (room) => {
+      document.getElementById('joinCard').style.display = 'none';
+      document.getElementById('gameArea').style.display = 'flex';
+    });
+
+    socket.on('updateState', (state) => {
+      currentTurnId = state.currentTurn;
+      const me = state.players.find(p => p.id === socket.id);
+      const activePlayer = state.players.find(p => p.id === state.currentTurn);
+
+      if (state.lastRoll) {
+        document.getElementById('diceDisplay').innerText = state.lastRoll;
       }
 
-      activeRoomCode = code.toUpperCase();
-      socket.emit('joinRoom', { roomCode: activeRoomCode, playerName: name });
-    }
-
-    socket.on('roomUpdate', ({ players, roomCode }) => {
-      document.getElementById('roomDetails').classList.remove('hidden');
-      document.getElementById('roomCodeText').innerText = `Room Code: ${roomCode} (${players.length}/4)`;
-
-      const chipsBox = document.getElementById('playerChips');
-      chipsBox.innerHTML = '';
-
-      players.forEach((p) => {
-        const div = document.createElement('div');
-        div.className = 'player-chip';
-        div.style.background = p.colorHex;
-        div.style.color = p.color === 'Yellow' ? '#000' : '#fff';
-        div.innerHTML = `<span><span class="color-dot" style="background:${p.colorHex}"></span>${p.name}</span> <span>${p.color}</span>`;
-        chipsBox.appendChild(div);
-      });
-
-      // Agar kam se kam 2 players hain toh Host Start button dekh sakta hai
-      const startBtn = document.getElementById('startBtn');
-      if (players.length >= 2 && players[0].id === socket.id) {
-        startBtn.classList.remove('hidden');
-      } else {
-        startBtn.classList.add('hidden');
-      }
-    });
-
-    function handleStart() {
-      socket.emit('startGame', activeRoomCode);
-    }
-
-    socket.on('gameStarted', ({ currentTurn }) => {
-      document.getElementById('lobbySection').classList.add('hidden');
-      document.getElementById('gameSection').classList.remove('hidden');
-      updateTurnStatus(currentTurn);
-    });
-
-    function handleRoll() {
-      socket.emit('rollDice', activeRoomCode);
-    }
-
-    socket.on('diceRolled', ({ rolledBy, value, nextTurn }) => {
-      document.getElementById('diceResult').innerText = value;
-      updateTurnStatus(nextTurn, `${rolledBy.name} ne ${value} laya!`);
-    });
-
-    function updateTurnStatus(turnPlayer, prefixText = '') {
-      const turnDisplay = document.getElementById('turnDisplay');
-      const isMyTurn = turnPlayer.id === socket.id;
+      const isMyTurn = socket.id === state.currentTurn;
       const rollBtn = document.getElementById('rollBtn');
+      rollBtn.disabled = !isMyTurn;
 
-      const statusMsg = prefixText ? `${prefixText} ` : '';
-      turnDisplay.innerHTML = `${statusMsg}Abhi baari hai: <strong style="color:${turnPlayer.colorHex}">${turnPlayer.name} (${turnPlayer.color})</strong>`;
-
+      const statusBar = document.getElementById('statusBar');
       if (isMyTurn) {
-        rollBtn.disabled = false;
-        rollBtn.style.opacity = '1';
-        rollBtn.innerText = '🎲 Aapka Turn Hai! Pasa Feko';
+        statusBar.innerHTML = `<strong>Aapki baari hai (${me.color.toUpperCase()})!</strong> Pasa phenkein.`;
+        statusBar.style.color = "#38bdf8";
       } else {
-        rollBtn.disabled = true;
-        rollBtn.style.opacity = '0.5';
-        rollBtn.innerText = `⏳ ${turnPlayer.name} ki turn ka intezar...`;
+        statusBar.innerHTML = `Baari: <strong>${activePlayer ? activePlayer.name : ''} (${activePlayer ? activePlayer.color.toUpperCase() : ''})</strong> ki hai...`;
+        statusBar.style.color = "#94a3b8";
       }
-    }
-
-    socket.on('errorMsg', (msg) => {
-      alert(msg);
     });
+
+    socket.on('gameError', (msg) => alert(msg));
   </script>
 </body>
 </html>
