@@ -1,16 +1,26 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH PURE SOCKET ROOM SYNC
+ * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH DIRECT INSTANT WEBSOCKET
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Direct Auto-reconnecting Socket.io Connection
-  const socket = (typeof io !== 'undefined') ? io() : null;
+  // Direct socket instance
+  let socket = null;
+  function getSocketInstance() {
+    if (!socket && typeof io !== 'undefined') {
+      socket = io({
+        transports: ['polling', 'websocket'],
+        reconnection: true
+      });
+      setupRoomSocketListeners();
+    }
+    return socket;
+  }
 
-  // 1. SOUND MANAGER
+  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -398,8 +408,9 @@
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     applyDiceRoll(finalRoll);
 
-    if (GameState.isOnline && socket) {
-      socket.emit('broadcastGameAction', {
+    const s = getSocketInstance();
+    if (GameState.isOnline && s) {
+      s.emit('broadcastGameAction', {
         type: 'DICE_ROLLED',
         roll: finalRoll
       });
@@ -446,8 +457,9 @@
       await new Promise(res => setTimeout(res, 350));
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
-      if (GameState.isOnline && socket && currentPlayer.color === GameState.myOnlineColor) {
-        socket.emit('broadcastGameAction', {
+      const s = getSocketInstance();
+      if (GameState.isOnline && s && currentPlayer.color === GameState.myOnlineColor) {
+        s.emit('broadcastGameAction', {
           type: 'TOKEN_MOVED',
           color: currentPlayer.color,
           tokenId: legalTokenIds[0]
@@ -477,8 +489,9 @@
     clearTokenHighlights();
     executeMove(color, id);
 
-    if (GameState.isOnline && socket) {
-      socket.emit('broadcastGameAction', {
+    const s = getSocketInstance();
+    if (GameState.isOnline && s) {
+      s.emit('broadcastGameAction', {
         type: 'TOKEN_MOVED',
         color: color,
         tokenId: id
@@ -659,7 +672,6 @@
       const btnCreate = document.getElementById('btn-create-room');
       const btnJoin = document.getElementById('btn-join-room');
       btnCreate.innerText = 'CREATE ROOM';
-      btnCreate.disabled = false;
       btnJoin.innerText = 'JOIN ROOM';
       btnJoin.disabled = false;
     });
@@ -672,7 +684,6 @@
 
       const btnCreate = document.getElementById('btn-create-room');
       btnCreate.innerText = 'START ONLINE GAME (Waiting for friend...)';
-      btnCreate.disabled = false;
       btnCreate.classList.remove('btn-secondary');
       btnCreate.classList.add('btn-primary');
       btnCreate.onclick = () => socket.emit('startOnlineGame');
@@ -772,18 +783,20 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // DIRECT SOCKET ROOM CREATION (No fetch error)
+    // DIRECT SOCKET ROOM CREATION
     document.getElementById('btn-create-room').addEventListener('click', () => {
-      if (!socket) return alert('Connecting... Kripya 1 second baad try karein.');
+      const s = getSocketInstance();
+      if (!s) return alert('Connecting... Please wait 1-2 seconds');
       const btn = document.getElementById('btn-create-room');
       btn.innerText = 'Creating Room...';
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-      socket.emit('createRoom', { hostName: name });
+      s.emit('createRoom', { hostName: name });
     });
 
     // DIRECT SOCKET ROOM JOIN
     document.getElementById('btn-join-room').addEventListener('click', () => {
-      if (!socket) return alert('Connecting... Kripya 1 second baad try karein.');
+      const s = getSocketInstance();
+      if (!s) return alert('Connecting... Please wait 1-2 seconds');
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const code = document.getElementById('join-room-code').value.trim().toUpperCase();
 
@@ -792,7 +805,7 @@
       }
 
       document.getElementById('btn-join-room').innerText = 'Joining...';
-      socket.emit('joinRoom', { playerName: name, roomCode: code });
+      s.emit('joinRoom', { playerName: name, roomCode: code });
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -845,7 +858,8 @@
       }
     });
 
-    setupRoomSocketListeners();
+    // Auto trigger socket connection
+    getSocketInstance();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
