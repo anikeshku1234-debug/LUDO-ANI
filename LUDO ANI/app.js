@@ -1,27 +1,21 @@
 /**
  * ============================================================================
- * LUDO ROYALE - EXACT REFERENCE STAR POSITIONED CLIENT ENGINE
+ * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH ZERO-FAIL ONLINE SYNC
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Smart Reconnecting Socket Handler
-  let socket = null;
-  function getSocket() {
-    if (!socket && typeof io !== 'undefined') {
-      try {
-        socket = io({ transports: ['websocket', 'polling'], timeout: 15000 });
-        setupRoomSocketListeners();
-      } catch (e) {
-        console.warn("Socket initialization error:", e);
-      }
-    }
-    return socket;
-  }
+  // Reliable Realtime Socket.io Setup
+  const socket = (typeof io !== 'undefined') ? io({
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 20,
+    reconnectionDelay: 1000
+  }) : null;
 
-  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
+  // 1. SOUND MANAGER (WEB AUDIO API SYNTHESIZER)
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -155,7 +149,6 @@
     blue:   { offset: 39 }
   };
 
-  // 8 Safe Cells: 4 Entrances [0, 13, 26, 39] + 4 Stars [8, 21, 34, 47]
   const SAFE_CELL_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
 
   function getVisualCoordsForStep(color, step) {
@@ -176,7 +169,7 @@
     }
   }
 
-  // 3. GAME RULES & STATE ENGINE
+  // 3. GAME RULES & STATE
   const GAME_RULES = { THREE_SIX_PENALTY: true };
 
   const GameState = {
@@ -205,7 +198,7 @@
       this.winners = [];
       this.tokens = {};
 
-      // 4 colors initialization so inactive bases remain colorful with their tokens
+      // Initialize all 4 colors so inactive bases still display with their tokens
       ['red', 'green', 'yellow', 'blue'].forEach(color => {
         this.tokens[color] = [
           { id: 0, step: -1 },
@@ -255,7 +248,7 @@
     }
   };
 
-  // 4. UI BUILDER (EXACT CURSOR-MATCHED STAR POSITIONS)
+  // 4. UI BUILDER
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -266,32 +259,23 @@
         cell.className = 'board-cell';
         cell.id = `cell-${r}-${c}`;
 
-        // Red Home Run & Starting Arrow
         if (c === 7 && r >= 9 && r <= 13) cell.classList.add('cell-red-path');
         if (r === 13 && c === 6) cell.classList.add('cell-red-path');
 
-        // Green Home Run & Starting Arrow
         if (r === 7 && c >= 1 && c <= 5) cell.classList.add('cell-green-path');
         if (r === 6 && c === 1) cell.classList.add('cell-green-path');
 
-        // Yellow Home Run & Starting Arrow
         if (c === 7 && r >= 1 && r <= 5) cell.classList.add('cell-yellow-path');
         if (r === 1 && c === 8) cell.classList.add('cell-yellow-path');
 
-        // Blue Home Run & Starting Arrow
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
-        // Safe Stars positioned exactly where the cursor is pointing:
-        // Bottom arm (Red arm): Row 12, Col 8 (Right column where cursor pointed)
-        // Left arm (Green arm): Row 8, Col 2 (Bottom row)
-        // Top arm (Yellow arm): Row 2, Col 6 (Left column)
-        // Right arm (Blue arm): Row 6, Col 12 (Top row)
+        // Reference Matched Safe Stars
         if ((r === 12 && c === 8) || (r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12)) {
           cell.classList.add('safe-cell-star');
         }
 
-        // Perimeter Arrows
         if (r === 14 && c === 7) cell.innerHTML = '<span class="arrow-symbol">↑</span>';
         if (r === 7 && c === 0) cell.innerHTML = '<span class="arrow-symbol">→</span>';
         if (r === 0 && c === 7) cell.innerHTML = '<span class="arrow-symbol">↓</span>';
@@ -411,21 +395,22 @@
     tokenEl.style.left = `${baseCoords.left}px`;
   }
 
-  // 6. GAMEPLAY & SYNC
+  // 6. GAMEPLAY ENGINE & ACTION BROADCASTER
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
 
     const currentPlayer = GameState.getCurrentPlayer();
     if (!currentPlayer) return;
 
+    // Reject roll if online and not this player's assigned device
     if (GameState.isOnline && currentPlayer.color !== GameState.myOnlineColor) return;
 
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     applyDiceRoll(finalRoll);
 
-    const s = getSocket();
-    if (GameState.isOnline && s) {
-      s.emit('broadcastGameAction', {
+    // Broadcast roll to other connected devices
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
         type: 'DICE_ROLLED',
         roll: finalRoll
       });
@@ -472,9 +457,8 @@
       await new Promise(res => setTimeout(res, 350));
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
-      const s = getSocket();
-      if (GameState.isOnline && s && currentPlayer.color === GameState.myOnlineColor) {
-        s.emit('broadcastGameAction', {
+      if (GameState.isOnline && socket && currentPlayer.color === GameState.myOnlineColor) {
+        socket.emit('broadcastGameAction', {
           type: 'TOKEN_MOVED',
           color: currentPlayer.color,
           tokenId: legalTokenIds[0]
@@ -504,9 +488,8 @@
     clearTokenHighlights();
     executeMove(color, id);
 
-    const s = getSocket();
-    if (GameState.isOnline && s) {
-      s.emit('broadcastGameAction', {
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
         type: 'TOKEN_MOVED',
         color: color,
         tokenId: id
@@ -657,25 +640,7 @@
     modal.style.display = 'flex';
   }
 
-  // 7. PASS & PLAY LAUNCHER
-  let selectedCount = 3;
-
-  function renderLobbyInputs(count) {
-    const container = document.getElementById('player-inputs-container');
-    container.innerHTML = '';
-    const colors = (count === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, count);
-
-    colors.forEach((c, i) => {
-      const row = document.createElement('div');
-      row.className = 'input-row';
-      row.innerHTML = `
-        <div class="input-dot" style="background:var(--ludo-${c});"></div>
-        <input type="text" id="name-input-${c}" value="Player ${i + 1}" placeholder="${c.toUpperCase()} Name" maxlength="12" />
-      `;
-      container.appendChild(row);
-    });
-  }
-
+  // 7. BOARD LAUNCHER
   function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const label = document.getElementById(`label-${c}`);
@@ -696,6 +661,92 @@
     syncUIWithTurn();
   }
 
+  // 8. ONLINE ROOM SOCKET PROTOCOL (REAL CONNECTIVITY)
+  function setupRoomSocketListeners() {
+    if (!socket) return;
+
+    socket.on('roomError', (msg) => {
+      alert(msg);
+      const btnJoin = document.getElementById('btn-join-room');
+      btnJoin.innerText = 'JOIN ROOM';
+      btnJoin.disabled = false;
+    });
+
+    // Room created on Server successfully
+    socket.on('roomCreatedSuccess', (data) => {
+      socket.roomCode = data.roomCode;
+      socket.playerColor = data.myColor;
+      document.getElementById('display-room-code').innerText = data.roomCode;
+      document.getElementById('created-code-box').style.display = 'block';
+
+      const btnCreate = document.getElementById('btn-create-room');
+      btnCreate.innerText = 'START ONLINE GAME (Waiting for players...)';
+      btnCreate.classList.remove('btn-secondary');
+      btnCreate.classList.add('btn-primary');
+      btnCreate.onclick = () => {
+        socket.emit('startOnlineGame');
+      };
+    });
+
+    // Room joined by Guest successfully
+    socket.on('roomJoinedSuccess', (data) => {
+      socket.roomCode = data.roomCode;
+      socket.playerColor = data.myColor;
+      document.getElementById('created-code-box').style.display = 'block';
+      document.getElementById('display-room-code').innerText = data.roomCode;
+
+      const btnJoin = document.getElementById('btn-join-room');
+      btnJoin.innerText = '✓ Joined! Waiting for Host to Start...';
+      btnJoin.disabled = true;
+    });
+
+    // Real-time players count update in lobby
+    socket.on('lobbyPlayerUpdate', (data) => {
+      const count = data.players.length;
+      document.getElementById('hud-room-display').innerText = `ROOM: ${socket.roomCode} (${count}/4)`;
+      
+      const btnCreate = document.getElementById('btn-create-room');
+      if (data.hostId === socket.id && count >= 2) {
+        btnCreate.innerText = `▶ START GAME (${count} Players Ready)`;
+      }
+    });
+
+    // Both/All devices start game synchronously
+    socket.on('onlineGameStarted', (data) => {
+      SoundManager.init();
+      document.getElementById('hud-room-display').innerText = `ONLINE: ${socket.roomCode}`;
+      launchGameBoard(data.players, true, socket.playerColor || 'red');
+    });
+
+    // Sync remote roll/move actions
+    socket.on('receiveGameAction', (action) => {
+      if (action.type === 'DICE_ROLLED') {
+        applyDiceRoll(action.roll);
+      } else if (action.type === 'TOKEN_MOVED') {
+        executeMove(action.color, action.tokenId);
+      }
+    });
+  }
+
+  // 9. EVENT LISTENERS
+  let selectedCount = 3;
+
+  function renderLobbyInputs(count) {
+    const container = document.getElementById('player-inputs-container');
+    container.innerHTML = '';
+    const colors = (count === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, count);
+
+    colors.forEach((c, i) => {
+      const row = document.createElement('div');
+      row.className = 'input-row';
+      row.innerHTML = `
+        <div class="input-dot" style="background:var(--ludo-${c});"></div>
+        <input type="text" id="name-input-${c}" value="Player ${i + 1}" placeholder="${c.toUpperCase()} Name" maxlength="12" />
+      `;
+      container.appendChild(row);
+    });
+  }
+
   function startPassAndPlayMatch() {
     SoundManager.init();
     const colors = (selectedCount === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, selectedCount);
@@ -710,52 +761,10 @@
     launchGameBoard(configuredPlayers, false);
   }
 
-  // 8. ONLINE ROOM SOCKET ENGINE
-  function setupRoomSocketListeners() {
-    if (!socket) return;
-
-    socket.on('roomError', (msg) => alert(msg));
-
-    socket.on('roomCreatedSuccess', (data) => {
-      document.getElementById('display-room-code').innerText = data.roomCode;
-      document.getElementById('created-code-box').style.display = 'block';
-      const btnCreate = document.getElementById('btn-create-room');
-      btnCreate.innerText = 'START ONLINE GAME';
-      btnCreate.onclick = () => socket.emit('startOnlineGame');
-    });
-
-    socket.on('roomJoinedSuccess', (data) => {
-      document.getElementById('created-code-box').style.display = 'block';
-      document.getElementById('display-room-code').innerText = data.roomCode;
-      document.getElementById('btn-join-room').innerText = 'Waiting for Host...';
-      document.getElementById('btn-join-room').disabled = true;
-    });
-
-    socket.on('lobbyPlayerUpdate', (data) => {
-      document.getElementById('hud-room-display').innerText = `PLAYERS: ${data.players.length}/4`;
-    });
-
-    socket.on('onlineGameStarted', (data) => {
-      SoundManager.init();
-      document.getElementById('hud-room-display').innerText = `ONLINE: ${socket.roomCode || 'ROOM'}`;
-      launchGameBoard(data.players, true, socket.playerColor || 'red');
-    });
-
-    socket.on('receiveGameAction', (action) => {
-      if (action.type === 'DICE_ROLLED') {
-        applyDiceRoll(action.roll);
-      } else if (action.type === 'TOKEN_MOVED') {
-        executeMove(action.color, action.tokenId);
-      }
-    });
-  }
-
-  // 9. EVENT LISTENERS
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
       document.getElementById('audio-unlock-overlay').style.display = 'none';
-      getSocket();
     });
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -764,9 +773,6 @@
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         e.target.classList.add('active');
         document.getElementById(e.target.dataset.tab).classList.add('active');
-        if (e.target.dataset.tab === 'tab-room') {
-          getSocket();
-        }
       });
     });
 
@@ -781,43 +787,26 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // Online Room Actions
+    // Online Room Actions (Real Server Execution)
     document.getElementById('btn-create-room').addEventListener('click', () => {
-      const s = getSocket();
-      const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-      if (s && s.connected) {
-        s.emit('createRoom', { hostName: name });
-      } else {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-        document.getElementById('display-room-code').innerText = code;
-        document.getElementById('created-code-box').style.display = 'block';
-        const btnCreate = document.getElementById('btn-create-room');
-        btnCreate.innerText = 'START GAME';
-        btnCreate.onclick = () => {
-          launchGameBoard([
-            { id: 'h1', name: name, color: 'red' },
-            { id: 'g1', name: 'Guest', color: 'yellow' }
-          ], false);
-        };
+      if (!socket || !socket.connected) {
+        return alert('Server se connect ho raha hai... Kripya 2 second ruk kar dubara dabayein!');
       }
+      const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
+      socket.emit('createRoom', { hostName: name });
     });
 
     document.getElementById('btn-join-room').addEventListener('click', () => {
-      const s = getSocket();
+      if (!socket || !socket.connected) {
+        return alert('Server se connect ho raha hai... Kripya 2 second ruk kar dubara dabayein!');
+      }
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const code = document.getElementById('join-room-code').value.trim().toUpperCase();
-      if (!code) return alert('Kripya 6-character room code bharein!');
-
-      if (s && s.connected) {
-        s.emit('joinRoom', { playerName: name, roomCode: code });
-      } else {
-        launchGameBoard([
-          { id: 'h1', name: 'Host Player', color: 'red' },
-          { id: 'g1', name: name, color: 'yellow' }
-        ], false);
+      if (!code || code.length !== 6) {
+        return alert('Kripya sahi 6-character room code daalein (Jaise: A7K92P)');
       }
+      document.getElementById('btn-join-room').innerText = 'Connecting...';
+      socket.emit('joinRoom', { playerName: name, roomCode: code });
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -870,7 +859,7 @@
       }
     });
 
-    getSocket();
+    setupRoomSocketListeners();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
