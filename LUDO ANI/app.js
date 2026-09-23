@@ -1,30 +1,22 @@
-/**
- * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH 4-DIGIT INTEGER ROOM SYNC
- * ============================================================================
- */
-
 (function () {
   'use strict';
 
-  // Global socket setup
-  const socket = (typeof io !== 'undefined') ? io({ transports: ['polling', 'websocket'] }) : null;
+  let peer = null;
+  let activeConn = null;
+  let isHost = false;
+  let myColor = 'red';
+  let onlinePlayers = [];
 
-  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
   const SoundManager = {
     ctx: null,
     enabled: true,
-
     init() {
       if (!this.ctx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContextClass();
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioClass();
       }
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
-      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
     },
-
     playDiceRattle() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
@@ -35,13 +27,10 @@
         osc.frequency.setValueAtTime(120 + Math.random() * 260, now + i * 0.05);
         gain.gain.setValueAtTime(0.18, now + i * 0.05);
         gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.05 + 0.04);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + i * 0.05);
-        osc.stop(now + i * 0.05 + 0.04);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + i * 0.05); osc.stop(now + i * 0.05 + 0.04);
       }
     },
-
     playStepPuk() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
@@ -52,30 +41,23 @@
       osc.frequency.exponentialRampToValueAtTime(70, now + 0.065);
       gain.gain.setValueAtTime(0.35, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.065);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.065);
+      osc.connect(gain); gain.connect(this.ctx.destination);
+      osc.start(now); osc.stop(now + 0.065);
     },
-
     playReleaseYes() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
-      const freqs = [523.25, 659.25, 783.99, 1046.50];
-      freqs.forEach((f, idx) => {
+      [523.25, 659.25, 783.99, 1046.50].forEach((f, idx) => {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'square';
         osc.frequency.setValueAtTime(f, now + idx * 0.055);
         gain.gain.setValueAtTime(0.16, now + idx * 0.055);
         gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.055 + 0.16);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.055);
-        osc.stop(now + idx * 0.055 + 0.16);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.055); osc.stop(now + idx * 0.055 + 0.16);
       });
     },
-
     playCaptureSuuu() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
@@ -86,50 +68,39 @@
       osc.frequency.exponentialRampToValueAtTime(110, now + 0.48);
       gain.gain.setValueAtTime(0.28, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.48);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.48);
+      osc.connect(gain); gain.connect(this.ctx.destination);
+      osc.start(now); osc.stop(now + 0.48);
     },
-
     playTwinkleChime() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
-      const notes = [1046.50, 1318.51, 1567.98, 2093.00, 2637.02];
-      notes.forEach((freq, i) => {
+      [1046.50, 1318.51, 1567.98, 2093.00, 2637.02].forEach((freq, i) => {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, now + i * 0.065);
         gain.gain.setValueAtTime(0.22, now + i * 0.065);
         gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.065 + 0.32);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + i * 0.065);
-        osc.stop(now + i * 0.065 + 0.32);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + i * 0.065); osc.stop(now + i * 0.065 + 0.32);
       });
     },
-
     playVictory() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
-      const fanfares = [440, 554.37, 659.25, 880];
-      fanfares.forEach((f, idx) => {
+      [440, 554.37, 659.25, 880].forEach((f, idx) => {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(f, now + idx * 0.12);
         gain.gain.setValueAtTime(0.3, now + idx * 0.12);
         gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.12);
-        osc.stop(now + idx * 0.12 + 0.4);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.12); osc.stop(now + idx * 0.12 + 0.4);
       });
     }
   };
 
-  // 2. 15x15 BOARD COORDINATES
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -138,10 +109,10 @@
   ];
 
   const COLOR_SPECS = {
-    red:    { offset: 0 },
-    green:  { offset: 13 },
+    red: { offset: 0 },
+    green: { offset: 13 },
     yellow: { offset: 26 },
-    blue:   { offset: 39 }
+    blue: { offset: 39 }
   };
 
   const SAFE_CELL_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
@@ -149,7 +120,6 @@
   function getVisualCoordsForStep(color, step) {
     if (step === -1) return null;
     if (step === 56) return { row: 7, col: 7 };
-
     const spec = COLOR_SPECS[color];
     if (step < 51) {
       const idx = (spec.offset + step) % 52;
@@ -157,14 +127,13 @@
       return { row: r, col: c };
     } else {
       const dist = step - 51;
-      if (color === 'red')    return { row: 13 - dist, col: 7 };
-      if (color === 'green')  return { row: 7, col: dist + 1 };
+      if (color === 'red') return { row: 13 - dist, col: 7 };
+      if (color === 'green') return { row: 7, col: dist + 1 };
       if (color === 'yellow') return { row: dist + 1, col: 7 };
-      if (color === 'blue')   return { row: 7, col: 13 - dist };
+      if (color === 'blue') return { row: 7, col: 13 - dist };
     }
   }
 
-  // 3. GAME STATE
   const GAME_RULES = { THREE_SIX_PENALTY: true };
 
   const GameState = {
@@ -195,10 +164,7 @@
 
       ['red', 'green', 'yellow', 'blue'].forEach(color => {
         this.tokens[color] = [
-          { id: 0, step: -1 },
-          { id: 1, step: -1 },
-          { id: 2, step: -1 },
-          { id: 3, step: -1 }
+          { id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }
         ];
       });
     },
@@ -224,7 +190,6 @@
     advanceTurn() {
       this.diceValue = null;
       this.consecutiveSixes = 0;
-
       if (this.winners.length >= this.players.length - 1) return;
 
       let count = this.activePlayerIndices.length;
@@ -240,7 +205,6 @@
     }
   };
 
-  // 4. UI BUILDER (Exact Reference Matched Stars)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -253,17 +217,13 @@
 
         if (c === 7 && r >= 9 && r <= 13) cell.classList.add('cell-red-path');
         if (r === 13 && c === 6) cell.classList.add('cell-red-path');
-
         if (r === 7 && c >= 1 && c <= 5) cell.classList.add('cell-green-path');
         if (r === 6 && c === 1) cell.classList.add('cell-green-path');
-
         if (c === 7 && r >= 1 && r <= 5) cell.classList.add('cell-yellow-path');
         if (r === 1 && c === 8) cell.classList.add('cell-yellow-path');
-
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
-        // Reference Matched Star Placement
         if ((r === 12 && c === 8) || (r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12)) {
           cell.classList.add('safe-cell-star');
         }
@@ -340,7 +300,6 @@
       pTokens.forEach(t => {
         const el = document.getElementById(`token-${color}-${t.id}`);
         if (!el) return;
-
         let coords;
         if (t.step === -1) {
           coords = getBaseSpotPixelCoords(color, t.id);
@@ -354,13 +313,11 @@
     });
   }
 
-  // 5. ANIMATIONS (Acoustic Cell-by-cell Puk & Suuu)
   async function animateTokenSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
-
     for (let s = fromStep + 1; s <= toStep; s++) {
-      await new Promise(resolve => setTimeout(resolve, 140));
+      await new Promise(res => setTimeout(res, 140));
       SoundManager.playStepPuk();
       const v = getVisualCoordsForStep(color, s);
       const coords = getCellPixelCoords(v.row, v.col);
@@ -372,25 +329,27 @@
   async function animateTokenReverseReturn(color, tokenId, fromStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
-
     for (let s = fromStep - 1; s >= 0; s--) {
-      await new Promise(resolve => setTimeout(resolve, 55));
+      await new Promise(res => setTimeout(res, 55));
       const v = getVisualCoordsForStep(color, s);
       const coords = getCellPixelCoords(v.row, v.col);
       tokenEl.style.top = `${coords.top}px`;
       tokenEl.style.left = `${coords.left}px`;
     }
-
-    await new Promise(resolve => setTimeout(resolve, 80));
+    await new Promise(res => setTimeout(res, 80));
     const baseCoords = getBaseSpotPixelCoords(color, tokenId);
     tokenEl.style.top = `${baseCoords.top}px`;
     tokenEl.style.left = `${baseCoords.left}px`;
   }
 
-  // 6. GAMEPLAY
+  function sendP2PMessage(msg) {
+    if (activeConn && activeConn.open) {
+      activeConn.send(msg);
+    }
+  }
+
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
-
     const currentPlayer = GameState.getCurrentPlayer();
     if (!currentPlayer) return;
 
@@ -399,11 +358,8 @@
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     applyDiceRoll(finalRoll);
 
-    if (GameState.isOnline && socket) {
-      socket.emit('broadcastGameAction', {
-        type: 'DICE_ROLLED',
-        roll: finalRoll
-      });
+    if (GameState.isOnline) {
+      sendP2PMessage({ type: 'DICE_ROLLED', roll: finalRoll });
     }
   }
 
@@ -421,11 +377,8 @@
     GameState.diceValue = finalRoll;
     GameState.isRolling = false;
 
-    if (finalRoll === 6) {
-      GameState.consecutiveSixes++;
-    } else {
-      GameState.consecutiveSixes = 0;
-    }
+    if (finalRoll === 6) GameState.consecutiveSixes++;
+    else GameState.consecutiveSixes = 0;
 
     if (GAME_RULES.THREE_SIX_PENALTY && GameState.consecutiveSixes === 3) {
       showTurnNotification("3 Consecutive 6s! Turn Cancelled");
@@ -447,12 +400,8 @@
       await new Promise(res => setTimeout(res, 350));
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
-      if (GameState.isOnline && socket && currentPlayer.color === GameState.myOnlineColor) {
-        socket.emit('broadcastGameAction', {
-          type: 'TOKEN_MOVED',
-          color: currentPlayer.color,
-          tokenId: legalTokenIds[0]
-        });
+      if (GameState.isOnline && currentPlayer.color === GameState.myOnlineColor) {
+        sendP2PMessage({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
       }
     } else {
       if (!GameState.isOnline || currentPlayer.color === GameState.myOnlineColor) {
@@ -478,12 +427,8 @@
     clearTokenHighlights();
     executeMove(color, id);
 
-    if (GameState.isOnline && socket) {
-      socket.emit('broadcastGameAction', {
-        type: 'TOKEN_MOVED',
-        color: color,
-        tokenId: id
-      });
+    if (GameState.isOnline) {
+      sendP2PMessage({ type: 'TOKEN_MOVED', color: color, tokenId: id });
     }
   }
 
@@ -567,9 +512,7 @@
   }
 
   function clearTokenHighlights() {
-    document.querySelectorAll('.token-selectable').forEach(el => {
-      el.classList.remove('token-selectable');
-    });
+    document.querySelectorAll('.token-selectable').forEach(el => el.classList.remove('token-selectable'));
   }
 
   function syncUIWithTurn() {
@@ -626,20 +569,15 @@
       loserRow.innerHTML = `<span style="color:#ef4444;">❌ Looser</span><span style="color:var(--ludo-${loser.color})">${loser.name}</span>`;
       podiumList.appendChild(loserRow);
     }
-
     modal.style.display = 'flex';
   }
 
-  // 7. BOARD LAUNCHER
   function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const label = document.getElementById(`label-${c}`);
       const p = configuredPlayers.find(x => x.color === c);
-      if (p) {
-        label.innerText = p.name;
-      } else {
-        label.innerText = c.toUpperCase();
-      }
+      if (p) label.innerText = p.name;
+      else label.innerText = c.toUpperCase();
     });
 
     GameState.init(configuredPlayers, isOnline, myColor);
@@ -651,70 +589,91 @@
     syncUIWithTurn();
   }
 
-  // 8. PURE SOCKET EVENT HANDLERS (4-Digit Room Handling)
-  function setupRoomSocketListeners() {
-    if (!socket) return;
+  function handleIncomingData(data) {
+    if (data.type === 'START_GAME') {
+      launchGameBoard(data.players, true, 'yellow');
+    } else if (data.type === 'DICE_ROLLED') {
+      applyDiceRoll(data.roll);
+    } else if (data.type === 'TOKEN_MOVED') {
+      executeMove(data.color, data.tokenId);
+    }
+  }
 
-    socket.on('roomError', (msg) => {
-      alert(msg);
-      const btnCreate = document.getElementById('btn-create-room');
-      const btnJoin = document.getElementById('btn-join-room');
-      btnCreate.innerText = 'CREATE ROOM';
-      btnCreate.disabled = false;
-      btnJoin.innerText = 'JOIN ROOM';
-      btnJoin.disabled = false;
-    });
-
-    socket.on('roomCreatedSuccess', (data) => {
-      socket.roomCode = data.roomCode;
-      socket.playerColor = data.myColor;
-      document.getElementById('display-room-code').innerText = data.roomCode;
+  function setupHostP2P(hostName) {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const peerId = `ludo-room-${code}`;
+    
+    peer = new Peer(peerId);
+    
+    peer.on('open', () => {
+      document.getElementById('display-room-code').innerText = code;
       document.getElementById('created-code-box').style.display = 'block';
-
-      const btnCreate = document.getElementById('btn-create-room');
-      btnCreate.innerText = 'START ONLINE GAME (Waiting for friend...)';
-      btnCreate.disabled = false;
-      btnCreate.classList.remove('btn-secondary');
-      btnCreate.classList.add('btn-primary');
-      btnCreate.onclick = () => socket.emit('startOnlineGame');
+      const btn = document.getElementById('btn-create-room');
+      btn.innerText = 'Waiting for Friend to Join...';
+      btn.disabled = true;
     });
 
-    socket.on('roomJoinedSuccess', (data) => {
-      socket.roomCode = data.roomCode;
-      socket.playerColor = data.myColor;
-      document.getElementById('created-code-box').style.display = 'block';
-      document.getElementById('display-room-code').innerText = data.roomCode;
+    peer.on('connection', (conn) => {
+      activeConn = conn;
+      conn.on('open', () => {
+        conn.on('data', (data) => {
+          if (data.type === 'GUEST_JOINED') {
+            const guestName = data.name;
+            const btn = document.getElementById('btn-create-room');
+            btn.innerText = `START GAME (${guestName} Connected!)`;
+            btn.disabled = false;
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
 
-      const btnJoin = document.getElementById('btn-join-room');
-      btnJoin.innerText = '✓ Joined! Waiting for Host...';
-      btnJoin.disabled = true;
+            onlinePlayers = [
+              { id: 'host', name: hostName, color: 'red' },
+              { id: 'guest', name: guestName, color: 'yellow' }
+            ];
+
+            btn.onclick = () => {
+              sendP2PMessage({ type: 'START_GAME', players: onlinePlayers });
+              launchGameBoard(onlinePlayers, true, 'red');
+            };
+          } else {
+            handleIncomingData(data);
+          }
+        });
+      });
     });
 
-    socket.on('lobbyPlayerUpdate', (data) => {
-      const count = data.players.length;
-      document.getElementById('hud-room-display').innerText = `ROOM: ${socket.roomCode} (${count}/4)`;
-      const btnCreate = document.getElementById('btn-create-room');
-      if (data.hostId === socket.id && count >= 2) {
-        btnCreate.innerText = `▶ START ONLINE GAME (${count} Ready)`;
-      }
-    });
-
-    socket.on('onlineGameStarted', (data) => {
-      SoundManager.init();
-      document.getElementById('hud-room-display').innerText = `ONLINE: ${socket.roomCode}`;
-      launchGameBoard(data.players, true, socket.playerColor || 'red');
-    });
-
-    socket.on('receiveGameAction', (action) => {
-      if (action.type === 'DICE_ROLLED') {
-        applyDiceRoll(action.roll);
-      } else if (action.type === 'TOKEN_MOVED') {
-        executeMove(action.color, action.tokenId);
-      }
+    peer.on('error', (err) => {
+      alert('Network issue. Kripya Create Room dobara dabayein!');
+      document.getElementById('btn-create-room').innerText = 'CREATE ROOM';
+      document.getElementById('btn-create-room').disabled = false;
     });
   }
 
-  // 9. EVENT LISTENERS
+  function setupGuestP2P(guestName, code) {
+    peer = new Peer();
+    const targetPeerId = `ludo-room-${code}`;
+
+    peer.on('open', () => {
+      const conn = peer.connect(targetPeerId, { reliable: true });
+      activeConn = conn;
+
+      conn.on('open', () => {
+        conn.send({ type: 'GUEST_JOINED', name: guestName });
+        document.getElementById('btn-join-room').innerText = '✓ Connected! Waiting for Host to Start...';
+        document.getElementById('btn-join-room').disabled = true;
+
+        conn.on('data', (data) => {
+          handleIncomingData(data);
+        });
+      });
+
+      peer.on('error', () => {
+        alert(`Room (${code}) nahi mila! Kripya sahi 4-digit code dalein.`);
+        document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
+        document.getElementById('btn-join-room').disabled = false;
+      });
+    });
+  }
+
   let selectedCount = 3;
 
   function renderLobbyInputs(count) {
@@ -773,30 +732,26 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // 4-DIGIT CREATE ROOM
     document.getElementById('btn-create-room').addEventListener('click', () => {
-      if (!socket) return alert('Server connecting... Kripya refresh karein.');
-      const btn = document.getElementById('btn-create-room');
-      btn.innerText = 'Creating 4-Digit Room...';
+      SoundManager.init();
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-      socket.emit('createRoom', { hostName: name });
+      document.getElementById('btn-create-room').innerText = 'Generating 4-Digit Room...';
+      setupHostP2P(name);
     });
 
-    // 4-DIGIT JOIN ROOM
     document.getElementById('btn-join-room').addEventListener('click', () => {
-      if (!socket) return alert('Server connecting... Kripya refresh karein.');
-      const btn = document.getElementById('btn-join-room');
+      SoundManager.init();
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const rawInput = document.getElementById('join-room-code').value || '';
       const code = rawInput.toString().trim().replace(/\s+/g, '');
 
       if (!code || code.length !== 4) {
-        return alert('Kripya sahi 4-digit numeric room code daalein (Jaise: 5821)!');
+        return alert('Kripya sahi 4-digit room code daalein (Jaise: 4821)!');
       }
 
-      btn.innerText = 'Joining...';
-      btn.disabled = true;
-      socket.emit('joinRoom', { playerName: name, roomCode: code });
+      document.getElementById('btn-join-room').innerText = 'Connecting...';
+      document.getElementById('btn-join-room').disabled = true;
+      setupGuestP2P(name, code);
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -848,8 +803,6 @@
         updateVisualTokensPositions();
       }
     });
-
-    setupRoomSocketListeners();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
