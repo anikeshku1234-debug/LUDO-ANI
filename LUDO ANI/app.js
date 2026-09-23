@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - CLIENT ENGINE WITH INSTANT FALLBACK NETWORKING
+ * LUDO ROYALE - CLIENT ENGINE WITH EXACT STAR POSITIONS & ACTIVE HOMES
  * ============================================================================
  */
 
@@ -155,6 +155,7 @@
     blue:   { offset: 39 }
   };
 
+  // 8 Safe cells: Starts [0, 13, 26, 39] + Stars [8, 21, 34, 47]
   const SAFE_CELL_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
 
   function getVisualCoordsForStep(color, step) {
@@ -204,8 +205,9 @@
       this.winners = [];
       this.tokens = {};
 
-      configuredPlayers.forEach(p => {
-        this.tokens[p.color] = [
+      // Initialize tokens for ALL 4 colors so inactive colors stay visible with tokens in their base!
+      ['red', 'green', 'yellow', 'blue'].forEach(color => {
+        this.tokens[color] = [
           { id: 0, step: -1 },
           { id: 1, step: -1 },
           { id: 2, step: -1 },
@@ -253,7 +255,7 @@
     }
   };
 
-  // 4. UI BUILDER
+  // 4. UI BUILDER (EXACT REFERENCE POSITIONS)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -264,22 +266,32 @@
         cell.className = 'board-cell';
         cell.id = `cell-${r}-${c}`;
 
+        // Red Home Run & Starting Arrow
         if (c === 7 && r >= 9 && r <= 13) cell.classList.add('cell-red-path');
         if (r === 13 && c === 6) cell.classList.add('cell-red-path');
 
+        // Green Home Run & Starting Arrow
         if (r === 7 && c >= 1 && c <= 5) cell.classList.add('cell-green-path');
         if (r === 6 && c === 1) cell.classList.add('cell-green-path');
 
+        // Yellow Home Run & Starting Arrow
         if (c === 7 && r >= 1 && r <= 5) cell.classList.add('cell-yellow-path');
         if (r === 1 && c === 8) cell.classList.add('cell-yellow-path');
 
+        // Blue Home Run & Starting Arrow
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
-        if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
+        // 4 Safe Stars matching reference screenshot exactly:
+        // Left arm: row 8, col 2
+        // Top arm: row 2, col 6
+        // Right arm: row 6, col 12
+        // Bottom arm: row 12, col 8
+        if ((r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12) || (r === 12 && c === 8)) {
           cell.classList.add('safe-cell-star');
         }
 
+        // Perimeter Arrows
         if (r === 14 && c === 7) cell.innerHTML = '<span class="arrow-symbol">↑</span>';
         if (r === 7 && c === 0) cell.innerHTML = '<span class="arrow-symbol">→</span>';
         if (r === 0 && c === 7) cell.innerHTML = '<span class="arrow-symbol">↓</span>';
@@ -317,8 +329,8 @@
     const layer = document.getElementById('tokens-layer');
     layer.innerHTML = '';
 
-    GameState.players.forEach(p => {
-      const color = p.color;
+    // Render all 4 colors so inactive bases also show their gotis!
+    ['red', 'green', 'yellow', 'blue'].forEach(color => {
       const pTokens = GameState.tokens[color];
       if (!pTokens) return;
 
@@ -346,8 +358,7 @@
   }
 
   function updateVisualTokensPositions() {
-    GameState.players.forEach(p => {
-      const color = p.color;
+    ['red', 'green', 'yellow', 'blue'].forEach(color => {
       const pTokens = GameState.tokens[color];
       if (!pTokens) return;
 
@@ -368,7 +379,7 @@
     });
   }
 
-  // 5. ANIMATIONS (STEPPING & REWIND)
+  // 5. ANIMATIONS
   async function animateTokenSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -485,7 +496,8 @@
     const id = parseInt(e.currentTarget.dataset.id, 10);
     const currentPlayer = GameState.getCurrentPlayer();
 
-    if (color !== currentPlayer.color) return;
+    // Inactive colors or not your turn -> reject click
+    if (!currentPlayer || color !== currentPlayer.color) return;
     if (GameState.isOnline && color !== GameState.myOnlineColor) return;
 
     const legalTokens = GameState.getLegalMoves(color, GameState.diceValue);
@@ -667,17 +679,14 @@
   }
 
   function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
+    // Keep all yards colorful! Display player name if active, or keep color label
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
-      const yard = document.getElementById(`yard-${c}`);
       const label = document.getElementById(`label-${c}`);
       const p = configuredPlayers.find(x => x.color === c);
-
       if (p) {
-        yard.classList.remove('inactive-player');
         label.innerText = p.name;
       } else {
-        yard.classList.add('inactive-player');
-        label.innerText = 'DISABLED';
+        label.innerText = c.toUpperCase();
       }
     });
 
@@ -704,7 +713,7 @@
     launchGameBoard(configuredPlayers, false);
   }
 
-  // 8. ONLINE ROOM SOCKET ENGINE (WITH INSTANT GENERATION)
+  // 8. ONLINE ROOM SOCKET ENGINE
   function setupRoomSocketListeners() {
     if (!socket) return;
 
@@ -775,14 +784,13 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // Online Room Actions (Robust instant connection)
+    // Online Room Actions
     document.getElementById('btn-create-room').addEventListener('click', () => {
       const s = getSocket();
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
       if (s && s.connected) {
         s.emit('createRoom', { hostName: name });
       } else {
-        // Instant Client-Side Code Generation Fallback
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let code = '';
         for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -808,7 +816,6 @@
       if (s && s.connected) {
         s.emit('joinRoom', { playerName: name, roomCode: code });
       } else {
-        // Direct match launch
         launchGameBoard([
           { id: 'h1', name: 'Host Player', color: 'red' },
           { id: 'g1', name: name, color: 'yellow' }
