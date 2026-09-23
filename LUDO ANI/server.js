@@ -65,7 +65,6 @@ function executeBotTurn(roomCode) {
   const activePlayer = room.players[room.turnIndex];
   if (!activePlayer || !activePlayer.isBot) return;
 
-  // Fast AI timing (350ms)
   setTimeout(() => {
     if (!room || !room.gameStarted) return;
     const roll = getFairRoll();
@@ -85,7 +84,7 @@ function executeBotTurn(roomCode) {
         roll: 6,
         activeColor: activePlayer.color,
         canMove: false,
-        message: '3 Baar 6 aaya! Chance agle player ko mili.'
+        message: 'AI ke 3 baar 6 aaye! Baari cancel.'
       });
       setTimeout(() => {
         io.to(roomCode).emit('turnChanged', {
@@ -93,7 +92,7 @@ function executeBotTurn(roomCode) {
           tokens: room.tokens
         });
         executeBotTurn(roomCode);
-      }, 700);
+      }, 800);
       return;
     }
 
@@ -121,18 +120,16 @@ function executeBotTurn(roomCode) {
           tokens: room.tokens
         });
         executeBotTurn(roomCode);
-      }, 500);
+      }, 700);
     } else {
       setTimeout(() => {
-        // Fast AI selection: Kill opponent > Open new base token > Furthest forward
         let chosenIdx = moveable[0];
         const outToken = moveable.find(idx => myTokens[idx].step === -1);
         if (outToken !== undefined && roll === 6) chosenIdx = outToken;
-
         handleMove(roomCode, activePlayer.color, chosenIdx);
-      }, 400);
+      }, 500);
     }
-  }, 450);
+  }, 600);
 }
 
 function handleMove(roomCode, color, tokenIndex) {
@@ -143,22 +140,17 @@ function handleMove(roomCode, color, tokenIndex) {
 
   const t = room.tokens[color][tokenIndex];
   const roll = room.currentRoll;
-  const fromStep = t.step;
-  let toStep = fromStep;
   let valid = false;
   let bonus = (roll === 6);
   let eventType = 'step';
-  let killedInfo = null;
 
   if (t.step === -1 && roll === 6) {
     t.step = 0;
-    toStep = 0;
     valid = true;
     bonus = true;
     eventType = 'out';
   } else if (t.step !== -1 && t.step + roll <= 56) {
-    toStep = t.step + roll;
-    t.step = toStep;
+    t.step += roll;
     valid = true;
 
     if (t.step === 56) {
@@ -172,11 +164,10 @@ function handleMove(roomCode, color, tokenIndex) {
       if (!safeGlobals.includes(myGlobal)) {
         room.players.forEach(p => {
           if (p.color !== color) {
-            room.tokens[p.color].forEach((other, oIdx) => {
+            room.tokens[p.color].forEach((other) => {
               if (other.step >= 0 && other.step < 51) {
                 const otherGlobal = (START_OFFSET[p.color] + other.step) % 52;
                 if (otherGlobal === myGlobal) {
-                  killedInfo = { color: p.color, index: oIdx, fromStep: other.step };
                   other.step = -1;
                   bonus = true;
                   eventType = 'kill';
@@ -209,20 +200,14 @@ function handleMove(roomCode, color, tokenIndex) {
       io.to(roomCode).emit('tokenMoved', {
         tokens: room.tokens,
         activeColor: color,
-        eventType: eventType,
-        tokenIndex: tokenIndex,
-        fromStep: fromStep,
-        toStep: toStep,
-        moveColor: color,
-        bonus: bonus,
-        killedInfo: killedInfo
+        eventType: eventType
       });
       setTimeout(() => {
         io.to(roomCode).emit('gameOver', {
           winners: room.winners.map(c => room.players.find(p => p.color === c)),
           loser: loser
         });
-      }, 1500);
+      }, 800);
       return;
     }
 
@@ -236,13 +221,7 @@ function handleMove(roomCode, color, tokenIndex) {
     io.to(roomCode).emit('tokenMoved', {
       tokens: room.tokens,
       activeColor: nextColor,
-      eventType: eventType,
-      tokenIndex: tokenIndex,
-      fromStep: fromStep,
-      toStep: toStep,
-      moveColor: color,
-      bonus: bonus,
-      killedInfo: killedInfo
+      eventType: eventType
     });
 
     executeBotTurn(roomCode);
@@ -250,7 +229,7 @@ function handleMove(roomCode, color, tokenIndex) {
 }
 
 io.on('connection', (socket) => {
-  // 1 Fast AI Mode (1 Human vs 1 AI Yellow)
+  // Fast 1v1 AI Mode
   socket.on('createBotGame', ({ playerName }) => {
     const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
     rooms[roomCode] = {
@@ -259,7 +238,7 @@ io.on('connection', (socket) => {
       consecutiveSixes: 0,
       players: [
         { id: socket.id, name: playerName.trim() || 'Player 1', color: 'red', isBot: false },
-        { id: 'bot_yellow', name: 'Fast AI (Yellow)', color: 'yellow', isBot: true }
+        { id: 'bot_yellow', name: 'Computer (Yellow)', color: 'yellow', isBot: true }
       ],
       turnIndex: 0,
       currentRoll: 0,
@@ -284,7 +263,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Online Multiplayer (2 to 4 Players)
+  // Online Room Create
   socket.on('createRoom', ({ playerName }) => {
     if (!playerName) return;
     const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
@@ -317,13 +296,14 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Online Room Join
   socket.on('joinRoom', ({ playerName, roomCode }) => {
     const code = (roomCode || '').trim().toUpperCase();
     const room = rooms[code];
 
-    if (!room) return socket.emit('gameError', 'Yeh Room Code maujood nahi hai!');
-    if (room.gameStarted) return socket.emit('gameError', 'Game pehle hi shuru ho chuka hai!');
-    if (room.players.length >= 4) return socket.emit('gameError', 'Room full ho chuka hai (Max 4)!');
+    if (!room) return socket.emit('gameError', 'Room Code galat hai ya band ho chuka hai!');
+    if (room.gameStarted) return socket.emit('gameError', 'Game shuru ho chuka hai!');
+    if (room.players.length >= 4) return socket.emit('gameError', 'Room full hai (Max 4)!');
 
     const assignedColor = COLORS[room.players.length];
     const newPlayer = { id: socket.id, name: playerName.trim(), color: assignedColor, isBot: false };
@@ -346,12 +326,11 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Start Room Game
   socket.on('startGame', () => {
     const room = rooms[socket.roomCode];
     if (!room || room.hostId !== socket.id) return;
-    if (room.players.length < 2) {
-      return socket.emit('gameError', 'Game ke liye kam se kam 2 log chahiye!');
-    }
+    if (room.players.length < 2) return socket.emit('gameError', 'Kam se kam 2 players chahiye!');
 
     room.gameStarted = true;
     room.turnIndex = 0;
@@ -366,6 +345,7 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Roll Dice
   socket.on('rollDice', () => {
     const room = rooms[socket.roomCode];
     if (!room || !room.gameStarted || room.currentRoll !== 0) return;
@@ -409,7 +389,7 @@ io.on('connection', (socket) => {
           tokens: room.tokens
         });
         executeBotTurn(socket.roomCode);
-      }, 1000);
+      }, 900);
       return;
     }
 
@@ -436,7 +416,7 @@ io.on('connection', (socket) => {
           tokens: room.tokens
         });
         executeBotTurn(socket.roomCode);
-      }, 900);
+      }, 800);
     }
   });
 
