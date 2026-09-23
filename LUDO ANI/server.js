@@ -24,7 +24,14 @@ app.get('/sw.js', (req, res) => {
   res.sendFile(path.join(__dirname, 'sw.js'));
 });
 
-const rooms = {};
+app.get('/logo-192.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'logo-192.png'));
+});
+
+app.get('/logo-512.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'logo-512.png'));
+});
+
 const rooms = {};
 const COLORS = ['red', 'green', 'yellow', 'blue'];
 
