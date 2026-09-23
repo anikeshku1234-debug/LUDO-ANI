@@ -5,129 +5,238 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ludo Multiplayer</title>
 
-  <!-- PWA Meta Tags & Icons -->
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png">
   <link rel="apple-touch-icon" href="/logo-192.png">
-  <meta name="theme-color" content="#0284c7">
+  <meta name="theme-color" content="#1e3a8a">
 
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
-      --red: #dc2626;
-      --green: #16a34a;
-      --yellow: #facc15;
-      --blue: #2563eb;
+      --board-red: #c9182b;
+      --board-green: #0a8f3d;
+      --board-yellow: #ffcc00;
+      --board-blue: #0084ff;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: Arial, sans-serif; }
+    
+    /* Background Pattern Matching Image */
     body {
-      background: radial-gradient(circle, #1e40af, #0f172a);
+      background: #0284c7;
+      background-image: radial-gradient(#38bdf8 15%, transparent 16%), radial-gradient(#0369a1 15%, transparent 16%);
+      background-size: 60px 60px;
+      background-position: 0 0, 30px 30px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       min-height: 100vh; overflow-x: hidden; color: white;
     }
+
     .panel {
-      background: rgba(30, 41, 59, 0.95); border: 2px solid #38bdf8;
+      background: rgba(15, 23, 42, 0.96); border: 2px solid #38bdf8;
       border-radius: 16px; padding: 24px; width: 90%; max-width: 400px;
-      text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     }
     .btn {
       width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px;
-      font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+      font-size: 16px; font-weight: bold; cursor: pointer;
     }
     .btn-green { background: #16a34a; color: white; }
     .btn-blue { background: #2563eb; color: white; }
-    .btn-ai { background: #9333ea; color: white; }
+    .btn-ai { background: #eab308; color: #000; }
     input {
       width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px;
       border: 2px solid #64748b; background: #0f172a; color: white; font-size: 16px;
     }
-    #gameArea { display: none; flex-direction: column; align-items: center; }
-    
-    /* Board Layout - Photo Authentic */
-    #board {
-      width: 92vw; max-width: 420px; height: 92vw; max-height: 420px;
-      display: grid; grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
-      background: #ffffff; border: 4px solid #0f172a; box-shadow: 0 15px 35px rgba(0,0,0,0.8);
-      position: relative;
+
+    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; }
+
+    /* Top Player 2 Box (Matching Photo) */
+    .top-bar-box {
+      width: 94vw; max-width: 420px; display: flex; justify-content: flex-end; margin-bottom: 8px;
     }
-    .cell { border: 0.5px solid #cbd5e1; position: relative; display: flex; align-items: center; justify-content: center; }
-    .home-box { position: absolute; border: 4px solid #0f172a; display: grid; place-items: center; }
-    .home-inner { width: 68%; height: 68%; background: white; border-radius: 12px; border: 3px solid rgba(0,0,0,0.2); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; place-items: center; }
-    
-    .hb-red { top: 0; left: 0; width: 40%; height: 40%; background: var(--red); }
-    .hb-green { top: 0; right: 0; width: 40%; height: 40%; background: var(--green); }
-    .hb-blue { bottom: 0; left: 0; width: 40%; height: 40%; background: var(--blue); }
-    .hb-yellow { bottom: 0; right: 0; width: 40%; height: 40%; background: var(--yellow); }
+    .player-indicator-card {
+      background: #fed7aa; border: 2px solid #eab308; border-radius: 8px;
+      display: flex; align-items: center; padding: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .indicator-badge {
+      background: #0284c7; width: 44px; height: 44px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; margin-left: 6px;
+    }
+
+    /* Authentic 15x15 Ludo Grid matching Photo */
+    #board-container {
+      width: 94vw; max-width: 420px; height: 94vw; max-height: 420px;
+      position: relative; background: #ffffff; border: 4px solid #1e293b;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
+    #board {
+      width: 100%; height: 100%;
+      display: grid; grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
+    }
+    .cell {
+      border: 0.5px solid #cbd5e1; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: bold;
+    }
+
+    /* 4 Corner Home Bases */
+    .home-box { position: absolute; border: 3px solid #1e293b; display: grid; place-items: center; }
+    .hb-green  { top: 0; left: 0; width: 40%; height: 40%; background: var(--board-green); }
+    .hb-yellow { top: 0; right: 0; width: 40%; height: 40%; background: var(--board-yellow); }
+    .hb-red    { bottom: 0; left: 0; width: 40%; height: 40%; background: var(--board-red); }
+    .hb-blue   { bottom: 0; right: 0; width: 40%; height: 40%; background: var(--board-blue); }
+
+    .home-inner-white {
+      width: 70%; height: 70%; background: white; border-radius: 12px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; place-items: center;
+    }
+    .base-slot {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .slot-green  { background: var(--board-green); }
+    .slot-yellow { background: var(--board-yellow); border: 2px solid #ca8a04; }
+    .slot-red    { background: var(--board-red); border: 2px solid #991b1b; }
+    .slot-blue   { background: var(--board-blue); }
 
     /* Center Triangle */
     .center-finish {
       position: absolute; top: 40%; left: 40%; width: 20%; height: 20%;
-      background: conic-gradient(var(--green) 0deg 90deg, var(--yellow) 90deg 180deg, var(--blue) 180deg 270deg, var(--red) 270deg 360deg);
-      border: 2px solid #0f172a;
+      background: conic-gradient(var(--board-yellow) 0deg 90deg, var(--board-blue) 90deg 180deg, var(--board-red) 180deg 270deg, var(--board-green) 270deg 360deg);
+      border: 2px solid #1e293b;
     }
 
-    /* Coloured Star / Safe Stamps (Photo Style) */
-    .safe-stamp {
-      width: 80%; height: 80%; border-radius: 50%; opacity: 0.85;
-      display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; color: white;
-    }
-    .stamp-red { background: var(--red); }
-    .stamp-green { background: var(--green); }
-    .stamp-yellow { background: var(--yellow); }
-    .stamp-blue { background: var(--blue); }
+    /* Cells Colors */
+    .bg-red    { background: var(--board-red) !important; color: white; }
+    .bg-green  { background: var(--board-green) !important; color: white; }
+    .bg-yellow { background: var(--board-yellow) !important; color: #000; }
+    .bg-blue   { background: var(--board-blue) !important; color: white; }
 
-    /* Goti (Token Pin Look) */
+    /* Star Safe Mark */
+    .star-symbol { font-size: 20px; color: #64748b; font-weight: normal; }
+
+    /* Photo jaisa Teardrop Pin Goti */
     .pin {
-      width: 80%; height: 80%; border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg); cursor: pointer; border: 2px solid white;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.5); z-index: 10;
+      width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); cursor: pointer; border: 2px solid #ffffff;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.6); position: absolute; z-index: 20;
+      transition: all 0.2s ease;
     }
-    .pin-red { background: #ef4444; }
-    .pin-green { background: #22c55e; }
-    .pin-yellow { background: #eab308; }
-    .pin-blue { background: #3b82f6; }
+    .pin-red    { background: #dc2626; }
+    .pin-green  { background: #16a34a; }
+    .pin-yellow { background: #facc15; }
+    .pin-blue   { background: #2563eb; }
 
-    /* Controls */
-    .controls-bar {
-      margin-top: 15px; display: flex; gap: 15px; align-items: center; justify-content: space-between;
-      background: #1e293b; padding: 12px 20px; border-radius: 12px; width: 92vw; max-width: 420px;
+    /* Bottom Control Bar with Dice and Pin badge */
+    .bottom-bar {
+      width: 94vw; max-width: 420px; margin-top: 15px;
+      display: flex; align-items: center; justify-content: flex-start; gap: 10px;
     }
-    .dice-btn {
-      padding: 12px 24px; font-size: 20px; font-weight: bold; border-radius: 10px;
-      border: 3px solid #facc15; background: white; color: #0f172a; cursor: pointer;
+    .dice-card {
+      background: #ffedd5; border: 2px solid #fdba74; border-radius: 10px;
+      padding: 6px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .badge-icon {
+      background: #0284c7; width: 44px; height: 44px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; position: relative;
+    }
+    .dice-cube {
+      width: 46px; height: 46px; background: white; border-radius: 8px;
+      border: 2px solid #94a3b8; display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: bold; color: #0f172a; cursor: pointer; box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+    }
+    .arrow-pointer {
+      width: 0; height: 0;
+      border-top: 10px solid transparent; border-bottom: 10px solid transparent;
+      border-left: 14px solid #f97316; margin-left: 5px;
+      animation: bounceArrow 0.8s infinite alternate;
+    }
+    @keyframes bounceArrow {
+      from { transform: translateX(0); }
+      to { transform: translateX(6px); }
     }
   </style>
 </head>
 <body>
 
-  <!-- Menu View -->
+  <!-- Menu Panel -->
   <div id="menuView" class="panel">
     <h1 style="margin-bottom:15px; color:#38bdf8;">🎲 LUDO ROYALE</h1>
     <input id="nameInput" placeholder="Apna Naam Likhein" />
     <button class="btn btn-ai" onclick="startAI()">🤖 Play vs Computer (AI)</button>
     <button class="btn btn-green" onclick="createRoom()">🏠 Create Online Room</button>
-    <div style="margin: 10px 0; font-size: 12px; color:#94a3b8;">— YA CODE SE JOIN KAREIN —</div>
-    <input id="codeInput" placeholder="4-Digit Code" maxlength="4" />
+    <div style="margin: 10px 0; font-size: 12px; color:#94a3b8;">— YA 4-DIGIT CODE SE JOIN KAREIN —</div>
+    <input id="codeInput" placeholder="Room Code" maxlength="4" />
     <button class="btn btn-blue" onclick="joinRoom()">🔑 Join Room</button>
   </div>
 
-  <!-- Game Area -->
+  <!-- Game Canvas Area -->
   <div id="gameArea">
-    <div id="board">
-      <div class="home-box hb-red"><div class="home-inner" id="base-red"></div></div>
-      <div class="home-box hb-green"><div class="home-inner" id="base-green"></div></div>
-      <div class="home-box hb-blue"><div class="home-inner" id="base-blue"></div></div>
-      <div class="home-box hb-yellow"><div class="home-inner" id="base-yellow"></div></div>
+    <!-- Top Player 2 Box (Matching Photo) -->
+    <div class="top-bar-box">
+      <div class="player-indicator-card">
+        <div style="font-size:12px; font-weight:bold; color:#000; margin-right:5px;">Player 2</div>
+        <div class="indicator-badge">
+          <div class="pin pin-yellow" style="position:static; transform:rotate(-45deg);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 15x15 Ludo Board -->
+    <div id="board-container">
+      <div id="board"></div>
+      
+      <!-- 4 Corner Boxes -->
+      <div class="home-box hb-green">
+        <div class="home-inner-white">
+          <div class="base-slot slot-green" id="slot-green-0"></div>
+          <div class="base-slot slot-green" id="slot-green-1"></div>
+          <div class="base-slot slot-green" id="slot-green-2"></div>
+          <div class="base-slot slot-green" id="slot-green-3"></div>
+        </div>
+      </div>
+
+      <div class="home-box hb-yellow">
+        <div class="home-inner-white">
+          <div class="base-slot slot-yellow" id="slot-yellow-0"></div>
+          <div class="base-slot slot-yellow" id="slot-yellow-1"></div>
+          <div class="base-slot slot-yellow" id="slot-yellow-2"></div>
+          <div class="base-slot slot-yellow" id="slot-yellow-3"></div>
+        </div>
+      </div>
+
+      <div class="home-box hb-red">
+        <div class="home-inner-white">
+          <div class="base-slot slot-red" id="slot-red-0"></div>
+          <div class="base-slot slot-red" id="slot-red-1"></div>
+          <div class="base-slot slot-red" id="slot-red-2"></div>
+          <div class="base-slot slot-red" id="slot-red-3"></div>
+        </div>
+      </div>
+
+      <div class="home-box hb-blue">
+        <div class="home-inner-white">
+          <div class="base-slot slot-blue" id="slot-blue-0"></div>
+          <div class="base-slot slot-blue" id="slot-blue-1"></div>
+          <div class="base-slot slot-blue" id="slot-blue-2"></div>
+          <div class="base-slot slot-blue" id="slot-blue-3"></div>
+        </div>
+      </div>
+
+      <!-- Center Finish -->
       <div class="center-finish"></div>
     </div>
 
-    <div class="controls-bar">
-      <div>
-        <div id="turnLabel" style="font-size:16px; font-weight:bold;">Tayaar rahein...</div>
-        <div id="statusMsg" style="font-size:12px; color:#94a3b8;"></div>
+    <!-- Bottom Player 1 Controls (Matching Photo) -->
+    <div class="bottom-bar">
+      <div class="dice-card">
+        <div class="badge-icon">
+          <div id="myPinIcon" class="pin pin-red" style="position:static; transform:rotate(-45deg);"></div>
+        </div>
+        <div id="diceCube" class="dice-cube" onclick="rollDice()">●</div>
       </div>
-      <button id="diceBtn" class="dice-btn" onclick="rollDice()">🎲 --</button>
+      <div id="turnArrow" class="arrow-pointer"></div>
+      <div id="turnStatus" style="font-size:14px; font-weight:bold; margin-left:10px;">Player 1 Turn</div>
     </div>
   </div>
 
@@ -141,22 +250,77 @@
     let currentTokens = {};
     let isMyTurn = false;
 
-    // Audio SFX Engine
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSound(type) {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain); gain.connect(audioCtx.destination);
-      if (type === 'step') {
-        osc.frequency.setValueAtTime(450, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.08);
-      } else if (type === 'dice') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    // Grid Coordinates generator for Standard Ludo 15x15
+    const cellMap = {};
+    function buildBoard() {
+      const b = document.getElementById('board');
+      b.innerHTML = '';
+
+      for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.id = `c_${r}_${c}`;
+
+          // Colored Paths matching exact photo:
+          // Red Path (Bottom arm)
+          if (r === 7 && c >= 1 && c <= 5) cell.classList.add('bg-red');
+          if (r === 8 && c === 1) cell.classList.add('bg-red'); // Red Start
+
+          // Green Path (Left arm)
+          if (c === 7 && r >= 1 && r <= 5) cell.classList.add('bg-green');
+          if (r === 1 && c === 6) cell.classList.add('bg-green'); // Green Start
+
+          // Yellow Path (Top arm)
+          if (r === 7 && c >= 9 && c <= 13) cell.classList.add('bg-yellow');
+          if (r === 6 && c === 13) cell.classList.add('bg-yellow'); // Yellow Start
+
+          // Blue Path (Right arm)
+          if (c === 7 && r >= 9 && r <= 13) cell.classList.add('bg-blue');
+          if (r === 13 && c === 8) cell.classList.add('bg-blue'); // Blue Start
+
+          // Hollow Stars on Safe Cells (Exact photo spots)
+          if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
+            cell.innerHTML = '<span class="star-symbol">☆</span>';
+          }
+
+          // Arrows on entries matching photo
+          if (r === 7 && c === 0) cell.innerHTML = '→';
+          if (r === 0 && c === 7) cell.innerHTML = '↓';
+          if (r === 7 && c === 14) cell.innerHTML = '←';
+          if (r === 14 && c === 7) cell.innerHTML = '↑';
+
+          b.appendChild(cell);
+        }
+      }
+    }
+    buildBoard();
+
+    // 52 Global Step Track positions
+    const trackCoords = [
+      // Red entry -> Around board
+      [8,1],[8,2],[8,3],[8,4],[8,5],[9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],[14,8],
+      [13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14],[7,14],[6,14],
+      [6,13],[6,12],[6,11],[6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],[0,6],
+      [1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],[7,0],[7,1]
+    ];
+
+    function getCellIdForStep(color, step) {
+      if (step === -1) return null;
+      if (step === 56) return 'c_7_7'; // Center
+
+      const offsets = { red: 0, blue: 13, yellow: 26, green: 39 };
+      if (step < 51) {
+        const idx = (offsets[color] + step) % 52;
+        const [r, c] = trackCoords[idx];
+        return `c_${r}_${c}`;
+      } else {
+        // Home runs (51 to 55)
+        const homeIdx = step - 51;
+        if (color === 'red') return `c_7_${homeIdx + 1}`;
+        if (color === 'green') return `c_${homeIdx + 1}_7`;
+        if (color === 'yellow') return `c_7_${13 - homeIdx}`;
+        if (color === 'blue') return `c_${13 - homeIdx}_7`;
       }
     }
 
@@ -167,100 +331,119 @@
 
     function createRoom() {
       const name = document.getElementById('nameInput').value.trim();
-      if (!name) return alert('Kripya apna naam likhein!');
+      if (!name) return alert('Apna naam likhein!');
       socket.emit('createRoom', { playerName: name });
     }
 
     function joinRoom() {
       const name = document.getElementById('nameInput').value.trim();
       const code = document.getElementById('codeInput').value.trim();
-      if (!name || !code) return alert('Naam aur Room code dono bharein!');
+      if (!name || !code) return alert('Naam aur room code dono bharein!');
       socket.emit('joinRoom', { playerName: name, roomCode: code });
     }
 
     function rollDice() {
       if (!isMyTurn) return;
-      playSound('dice');
       socket.emit('rollDice');
     }
 
-    // Socket Event Handlers
     socket.on('gameStarted', (data) => {
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('gameArea').style.display = 'flex';
       myColor = data.myColor || 'red';
       currentTokens = data.tokens;
-      renderTokens();
-      updateTurn(data.activeColor);
+      renderAllTokens();
+      updateTurnIndicator(data.activeColor);
     });
 
     socket.on('diceRolled', (data) => {
-      document.getElementById('diceBtn').innerText = '🎲 ' + data.roll;
+      const diceCube = document.getElementById('diceCube');
+      const dots = ['●', '⚁', '⚂', '⚃', '⚄', '⚅'];
+      diceCube.innerText = dots[data.roll - 1] || data.roll;
+
       if (data.message) {
-        document.getElementById('statusMsg').innerText = data.message;
+        document.getElementById('turnStatus').innerText = data.message;
       }
     });
 
     socket.on('turnChanged', (data) => {
       currentTokens = data.tokens;
-      renderTokens();
-      updateTurn(data.activeColor);
+      renderAllTokens();
+      updateTurnIndicator(data.activeColor);
     });
 
     socket.on('tokenMoved', (data) => {
-      playSound('step');
       currentTokens = data.tokens;
-      renderTokens();
-      updateTurn(data.activeColor);
+      renderAllTokens();
+      updateTurnIndicator(data.activeColor);
     });
 
-    function updateTurn(activeColor) {
+    function updateTurnIndicator(activeColor) {
       isMyTurn = (activeColor === myColor);
-      const label = document.getElementById('turnLabel');
-      label.innerHTML = `Baari: <b style="color:var(--${activeColor})">${activeColor.toUpperCase()}</b>`;
-      const btn = document.getElementById('diceBtn');
-      btn.disabled = !isMyTurn;
-      btn.style.opacity = isMyTurn ? '1' : '0.5';
+      const status = document.getElementById('turnStatus');
+      status.innerText = isMyTurn ? 'Aapki Baari! Pasa Phenkein' : `${activeColor.toUpperCase()} ki baari hai...`;
+      document.getElementById('turnArrow').style.display = isMyTurn ? 'block' : 'none';
+      document.getElementById('diceCube').style.pointerEvents = isMyTurn ? 'auto' : 'none';
+      document.getElementById('diceCube').style.opacity = isMyTurn ? '1' : '0.6';
     }
 
-    function renderTokens() {
-      // Clear all home slots
-      ['red', 'green', 'yellow', 'blue'].forEach(c => {
-        const base = document.getElementById(`base-${c}`);
-        base.innerHTML = '';
-        if (currentTokens[c]) {
-          currentTokens[c].forEach((t, idx) => {
-            if (t.step === -1) {
+    function renderAllTokens() {
+      // Clear pins from board
+      document.querySelectorAll('.pin-on-board').forEach(p => p.remove());
+
+      ['red', 'green', 'yellow', 'blue'].forEach(col => {
+        if (!currentTokens[col]) return;
+
+        currentTokens[col].forEach((tok, idx) => {
+          if (tok.step === -1) {
+            // Inside Home Base Slot
+            const slot = document.getElementById(`slot-${col}-${idx}`);
+            if (slot) {
+              slot.innerHTML = '';
               const pin = document.createElement('div');
-              pin.className = `pin pin-${c}`;
-              pin.onclick = () => { if (isMyTurn && c === myColor) socket.emit('moveToken', { tokenIndex: idx }); };
-              base.appendChild(pin);
+              pin.className = `pin pin-${col}`;
+              pin.onclick = () => {
+                if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+              };
+              slot.appendChild(pin);
             }
-          });
-        }
+          } else {
+            // On Board Grid
+            const cellId = getCellIdForStep(col, tok.step);
+            const targetCell = document.getElementById(cellId);
+            if (targetCell) {
+              const pin = document.createElement('div');
+              pin.className = `pin pin-${col} pin-on-board`;
+              pin.onclick = () => {
+                if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+              };
+              targetCell.appendChild(pin);
+            }
+          }
+        });
       });
     }
 
-    // Winner Rank & GameOver Modal
+    // Rank & GameOver Modal
     socket.on('playerRanked', ({ color, name, rank }) => {
-      const suffixes = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
-      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home kar li hain aur ${suffixes[rank - 1] || rank} position haasil ki!`);
+      const ranks = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
+      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home karke ${ranks[rank-1] || rank} position paayi!`);
     });
 
     socket.on('gameOver', ({ winners, loser }) => {
-      let resultHtml = `<h2>🎮 Khel Khatam!</h2><div style="font-size:16px; margin: 15px 0;">`;
+      let html = `<h2>🎮 Khel Khatam!</h2><div style="font-size:16px; margin: 15px 0;">`;
       const ranks = ['1st Winner 🥇', '2nd Winner 🥈', '3rd Winner 🥉'];
       winners.forEach((p, idx) => {
-        resultHtml += `<p style="color:#22c55e; font-weight:bold;">${ranks[idx]}: ${p.name} (${p.color.toUpperCase()})</p>`;
+        html += `<p style="color:#22c55e; font-weight:bold;">${ranks[idx]}: ${p.name} (${p.color.toUpperCase()})</p>`;
       });
       if (loser) {
-        resultHtml += `<p style="color:#ef4444; font-weight:bold; margin-top:15px; border-top:1px dashed #64748b; padding-top:10px;">❌ Looser: ${loser.name} (${loser.color.toUpperCase()})</p>`;
+        html += `<p style="color:#ef4444; font-weight:bold; margin-top:15px; border-top:1px dashed #64748b; padding-top:10px;">❌ Looser: ${loser.name} (${loser.color.toUpperCase()})</p>`;
       }
-      resultHtml += `</div><button onclick="location.reload()" style="padding:10px 20px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">Play Again</button>`;
+      html += `</div><button onclick="location.reload()" style="padding:10px 20px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">Play Again</button>`;
 
       const modal = document.createElement('div');
-      modal.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1e293b; color:white; padding:25px; border-radius:15px; box-shadow:0 0 25px rgba(0,0,0,0.8); text-align:center; z-index:9999; min-width:280px; border:2px solid #eab308;";
-      modal.innerHTML = resultHtml;
+      modal.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1e293b; color:white; padding:25px; border-radius:15px; box-shadow:0 0 25px rgba(0,0,0,0.9); text-align:center; z-index:9999; min-width:280px; border:2px solid #eab308;";
+      modal.innerHTML = html;
       document.body.appendChild(modal);
     });
   </script>
