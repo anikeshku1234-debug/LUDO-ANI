@@ -55,7 +55,6 @@
     .home-inner { width: 74%; height: 74%; background: white; border-radius: 14px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 6px; gap: 6px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.2); }
     .home-slot { background: #f8fafc; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
-    /* Player Name Label inside Home */
     .home-name-tag {
       position: absolute;
       bottom: 4px;
@@ -92,10 +91,16 @@
     .safe-yellow { background: var(--yellow) !important; }
     .safe-blue { background: var(--blue) !important; }
 
-    .safe-star::after { content: '★'; font-size: 16px; font-weight: bold; }
-    .cell:not([class*="safe-"]):not([class*="path-"]).safe-star::after { color: #64748b; }
+    /* STAR DESIGN: White box me crisp black outline star */
+    .safe-star::after {
+      content: '☆';
+      font-size: 20px;
+      font-weight: 900;
+      color: #334155;
+      line-height: 1;
+    }
 
-    /* LUDO KING 3D PAWN DESIGN */
+    /* 3D PAWN DESIGN */
     .token {
       width: 82%;
       height: 94%;
@@ -133,7 +138,6 @@
       position: relative;
     }
 
-    /* Glossy 3D Colors */
     .token-red .pawn-head, .token-red .pawn-body, .token-red .pawn-neck {
       background: radial-gradient(circle at 35% 30%, #ff6b6b, #b91c1c 70%, #7f1d1d);
     }
@@ -299,7 +303,14 @@
     };
 
     const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
-    const SAFE_STAR_COORDS = ["7,2", "3,7", "2,9", "7,13", "9,14", "13,9", "14,7", "9,3"];
+
+    // IMAGE KE HISAB SE 4 WHITE STARS ADDED
+    const SAFE_STAR_COORDS = [
+      "3,7",   // Top white track (near Blue)
+      "7,13",  // Right white track (above Yellow)
+      "13,9",  // Bottom white track (near Green)
+      "9,3"    // Left white track (below Red)
+    ];
 
     function getPlayerCoord(color, step) {
       if (step < 0) return null;
@@ -322,7 +333,10 @@
           cell.id = `cell-${r}-${c}`;
           cell.style.gridRow = r; cell.style.gridColumn = c;
 
+          // Star on 4 white cells
           if (SAFE_STAR_COORDS.includes(`${r},${c}`)) cell.classList.add('safe-star');
+
+          // Colored tracks
           if (r === 7 && c === 2) cell.classList.add('safe-red');
           if (r === 8 && c >= 2 && c <= 6) cell.classList.add('path-red');
           if (r === 2 && c === 9) cell.classList.add('safe-green');
@@ -354,7 +368,6 @@
         }
         homeDiv.appendChild(inner);
 
-        // Player Name Tag inside Home Box
         const nameTag = document.createElement('div');
         nameTag.className = 'home-name-tag';
         nameTag.id = `nameTag-${h.color}`;
