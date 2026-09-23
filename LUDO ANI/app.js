@@ -1,26 +1,16 @@
 /**
  * ============================================================================
- * LUDO ROYALE - FAST MULTIPLAYER & LOCAL PASS-PLAY ENGINE
+ * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH PURE SOCKET ROOM SYNC
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Fast Socket Connection
-  let socket = null;
-  function connectSocket() {
-    if (!socket) {
-      socket = io({
-        transports: ['polling', 'websocket'],
-        timeout: 10000
-      });
-      setupRoomSocketListeners();
-    }
-    return socket;
-  }
+  // Direct Auto-reconnecting Socket.io Connection
+  const socket = (typeof io !== 'undefined') ? io() : null;
 
-  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
+  // 1. SOUND MANAGER
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -363,7 +353,7 @@
     });
   }
 
-  // 5. STEPPING & CAPTURE REVERSE
+  // 5. ANIMATIONS
   async function animateTokenSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -660,13 +650,16 @@
     syncUIWithTurn();
   }
 
-  // 8. ONLINE ROOM SOCKET & API PROTOCOL
+  // 8. PURE SOCKET EVENT HANDLERS
   function setupRoomSocketListeners() {
     if (!socket) return;
 
     socket.on('roomError', (msg) => {
       alert(msg);
+      const btnCreate = document.getElementById('btn-create-room');
       const btnJoin = document.getElementById('btn-join-room');
+      btnCreate.innerText = 'CREATE ROOM';
+      btnCreate.disabled = false;
       btnJoin.innerText = 'JOIN ROOM';
       btnJoin.disabled = false;
     });
@@ -678,7 +671,8 @@
       document.getElementById('created-code-box').style.display = 'block';
 
       const btnCreate = document.getElementById('btn-create-room');
-      btnCreate.innerText = 'START ONLINE GAME (Waiting...)';
+      btnCreate.innerText = 'START ONLINE GAME (Waiting for friend...)';
+      btnCreate.disabled = false;
       btnCreate.classList.remove('btn-secondary');
       btnCreate.classList.add('btn-primary');
       btnCreate.onclick = () => socket.emit('startOnlineGame');
@@ -691,7 +685,7 @@
       document.getElementById('display-room-code').innerText = data.roomCode;
 
       const btnJoin = document.getElementById('btn-join-room');
-      btnJoin.innerText = '✓ Connected! Wait for Host...';
+      btnJoin.innerText = '✓ Joined! Waiting for Host...';
       btnJoin.disabled = true;
     });
 
@@ -700,7 +694,7 @@
       document.getElementById('hud-room-display').innerText = `ROOM: ${socket.roomCode} (${count}/4)`;
       const btnCreate = document.getElementById('btn-create-room');
       if (data.hostId === socket.id && count >= 2) {
-        btnCreate.innerText = `▶ START GAME (${count} Ready)`;
+        btnCreate.innerText = `▶ START ONLINE GAME (${count} Ready)`;
       }
     });
 
@@ -756,7 +750,6 @@
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
       document.getElementById('audio-unlock-overlay').style.display = 'none';
-      connectSocket();
     });
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -765,9 +758,6 @@
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         e.target.classList.add('active');
         document.getElementById(e.target.dataset.tab).classList.add('active');
-        if (e.target.dataset.tab === 'tab-room') {
-          connectSocket();
-        }
       });
     });
 
@@ -782,59 +772,27 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // INSTANT REST + SOCKET ROOM CREATION
-    document.getElementById('btn-create-room').addEventListener('click', async () => {
+    // DIRECT SOCKET ROOM CREATION (No fetch error)
+    document.getElementById('btn-create-room').addEventListener('click', () => {
+      if (!socket) return alert('Connecting... Kripya 1 second baad try karein.');
       const btn = document.getElementById('btn-create-room');
       btn.innerText = 'Creating Room...';
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-
-      try {
-        const res = await fetch('/api/create-room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hostName: name })
-        });
-        const data = await res.json();
-        if (data.success) {
-          const s = connectSocket();
-          s.emit('registerInRoom', { roomCode: data.roomCode, playerName: name, isHost: true });
-        }
-      } catch (err) {
-        alert('Server se connect nahi ho paya. Refresh karke try karein.');
-        btn.innerText = 'CREATE ROOM';
-      }
+      socket.emit('createRoom', { hostName: name });
     });
 
-    // INSTANT REST + SOCKET ROOM JOINING
-    document.getElementById('btn-join-room').addEventListener('click', async () => {
-      const btn = document.getElementById('btn-join-room');
+    // DIRECT SOCKET ROOM JOIN
+    document.getElementById('btn-join-room').addEventListener('click', () => {
+      if (!socket) return alert('Connecting... Kripya 1 second baad try karein.');
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const code = document.getElementById('join-room-code').value.trim().toUpperCase();
 
       if (!code || code.length !== 6) {
-        return alert('Kripya 6-character room code bharein!');
+        return alert('Kripya sahi 6-character room code daalein!');
       }
 
-      btn.innerText = 'Checking...';
-      try {
-        const res = await fetch('/api/check-room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomCode: code })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          btn.innerText = 'JOIN ROOM';
-          return alert(data.message);
-        }
-
-        btn.innerText = 'Joining...';
-        const s = connectSocket();
-        s.emit('registerInRoom', { roomCode: code, playerName: name, isHost: false });
-      } catch (err) {
-        alert('Network issue. Kripya dobara try karein.');
-        btn.innerText = 'JOIN ROOM';
-      }
+      document.getElementById('btn-join-room').innerText = 'Joining...';
+      socket.emit('joinRoom', { playerName: name, roomCode: code });
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -887,8 +845,7 @@
       }
     });
 
-    // Auto connect socket in background
-    connectSocket();
+    setupRoomSocketListeners();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
