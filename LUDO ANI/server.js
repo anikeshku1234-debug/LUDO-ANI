@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
     const room = rooms[code];
 
     if (!room) {
-      socket.emit('gameError', 'Yeh Room Code maujood nahi hai!');
+      socket.emit('gameError', 'Yeh Room Code galat hai ya band ho chuka hai!');
       return;
     }
     if (room.gameStarted) {
@@ -81,14 +81,13 @@ io.on('connection', (socket) => {
       players: room.players
     });
 
-    // Notify all players in lobby
     io.to(code).emit('lobbyUpdate', {
       players: room.players,
       hostId: room.hostId
     });
   });
 
-  // 3. Start Game (Host Only)
+  // 3. Start Game
   socket.on('startGame', () => {
     const room = rooms[socket.roomCode];
     if (!room || room.hostId !== socket.id) return;
@@ -144,7 +143,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Move Token
+  // 5. Move Token with Step Coordinates
   socket.on('moveToken', ({ tokenIndex }) => {
     const room = rooms[socket.roomCode];
     if (!room || room.currentRoll === 0) return;
@@ -156,17 +155,21 @@ io.on('connection', (socket) => {
     const t = room.tokens[color][tokenIndex];
     const roll = room.currentRoll;
 
+    const fromStep = t.step;
+    let toStep = fromStep;
     let valid = false;
     let bonus = (roll === 6);
     let eventType = 'step';
 
     if (t.step === -1 && roll === 6) {
       t.step = 0;
+      toStep = 0;
       valid = true;
       bonus = true;
       eventType = 'out';
     } else if (t.step !== -1 && t.step + roll <= 56) {
-      t.step += roll;
+      toStep = t.step + roll;
+      t.step = toStep;
       valid = true;
 
       if (t.step === 56) {
@@ -206,6 +209,10 @@ io.on('connection', (socket) => {
         tokens: room.tokens,
         activeColor: room.players[room.turnIndex].color,
         eventType: eventType,
+        tokenIndex: tokenIndex,
+        fromStep: fromStep,
+        toStep: toStep,
+        moveColor: color,
         bonus: bonus
       });
     }
@@ -219,7 +226,7 @@ io.on('connection', (socket) => {
         delete rooms[socket.roomCode];
       } else {
         if (room.hostId === socket.id) {
-          room.hostId = room.players[0].id; // Assign next host
+          room.hostId = room.players[0].id;
         }
         io.to(socket.roomCode).emit('lobbyUpdate', {
           players: room.players,
