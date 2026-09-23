@@ -235,6 +235,9 @@
   </div>
 
   <script>
+       if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => console.log('SW error:', err));
+    }
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playSound(type) {
