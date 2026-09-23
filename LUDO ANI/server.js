@@ -6,7 +6,11 @@ const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: { origin: "*" },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
 const PORT = process.env.PORT || 10000;
 
@@ -31,11 +35,14 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
+// ACTIVE ROOMS REGISTRY
 const rooms = {};
 const COLOR_ORDER = ['red', 'yellow', 'green', 'blue'];
 
 io.on('connection', (socket) => {
-  // CREATE ROOM
+  console.log('[Socket Connected]:', socket.id);
+
+  // 1. CREATE ROOM (Server-side generated only)
   socket.on('createRoom', ({ hostName }) => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -48,7 +55,7 @@ io.on('connection', (socket) => {
       roomCode: code,
       hostId: socket.id,
       gameStarted: false,
-      players: [{ id: socket.id, name: host, color: 'red' }]
+      players: [{ id: socket.id, name: host, color: 'red', isHost: true }]
     };
 
     socket.join(code);
@@ -61,19 +68,20 @@ io.on('connection', (socket) => {
       myColor: 'red',
       isHost: true
     });
+    console.log(`[Room Created] Code: ${code} by ${host}`);
   });
 
-  // JOIN ROOM
+  // 2. JOIN ROOM
   socket.on('joinRoom', ({ playerName, roomCode }) => {
     const code = (roomCode || '').trim().toUpperCase();
     const room = rooms[code];
 
     if (!room) {
-      socket.emit('roomError', 'Galat Room Code! Room nahi mila.');
+      socket.emit('roomError', `Galat Room Code (${code})! Server par aisa koi room nahi hai.`);
       return;
     }
     if (room.gameStarted) {
-      socket.emit('roomError', 'Game pehle hi shuru ho chuka hai!');
+      socket.emit('roomError', 'Game pehle hi start ho chuka hai!');
       return;
     }
     if (room.players.length >= 4) {
@@ -82,10 +90,12 @@ io.on('connection', (socket) => {
     }
 
     const assignedColor = COLOR_ORDER[room.players.length];
+    const guest = (playerName || `Player ${room.players.length + 1}`).trim();
     const newPlayer = {
       id: socket.id,
-      name: (playerName || `Player ${room.players.length + 1}`).trim(),
-      color: assignedColor
+      name: guest,
+      color: assignedColor,
+      isHost: false
     };
 
     room.players.push(newPlayer);
@@ -100,18 +110,24 @@ io.on('connection', (socket) => {
       isHost: false
     });
 
+    // Notify all players in room
     io.to(code).emit('lobbyPlayerUpdate', {
       players: room.players,
       hostId: room.hostId
     });
+    console.log(`[Player Joined] ${guest} joined Room: ${code}. Total players: ${room.players.length}`);
   });
 
-  // START ONLINE GAME
+  // 3. START GAME (Only Host can trigger)
   socket.on('startOnlineGame', () => {
     const room = rooms[socket.roomCode];
-    if (!room || room.hostId !== socket.id) return;
+    if (!room) return;
+    if (room.hostId !== socket.id) {
+      socket.emit('roomError', 'Sirf Host game shuru kar sakta hai!');
+      return;
+    }
     if (room.players.length < 2) {
-      socket.emit('roomError', 'Kam se kam 2 players chahiye!');
+      socket.emit('roomError', 'Kam se kam 2 devices / players judne chahiye!');
       return;
     }
 
@@ -120,26 +136,31 @@ io.on('connection', (socket) => {
       players: room.players,
       activeColor: 'red'
     });
+    console.log(`[Game Started] In Room: ${socket.roomCode}`);
   });
 
-  // SYNC ACTION (DICE & MOVE)
+  // 4. REALTIME SYNC (Dice Roll & Token Move)
   socket.on('broadcastGameAction', (actionData) => {
     if (socket.roomCode) {
       socket.to(socket.roomCode).emit('receiveGameAction', actionData);
     }
   });
 
+  // 5. DISCONNECT HANDLER
   socket.on('disconnect', () => {
-    const room = rooms[socket.roomCode];
+    const code = socket.roomCode;
+    const room = rooms[code];
     if (room) {
       room.players = room.players.filter(p => p.id !== socket.id);
       if (room.players.length === 0) {
-        delete rooms[socket.roomCode];
+        delete rooms[code];
+        console.log(`[Room Cleaned] Room ${code} closed`);
       } else {
         if (room.hostId === socket.id) {
           room.hostId = room.players[0].id;
+          room.players[0].isHost = true;
         }
-        io.to(socket.roomCode).emit('lobbyPlayerUpdate', {
+        io.to(code).emit('lobbyPlayerUpdate', {
           players: room.players,
           hostId: room.hostId
         });
@@ -149,5 +170,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running with Socket.IO on port ${PORT}`);
+  console.log(`Ludo Real-time Engine running on port ${PORT}`);
 });
