@@ -6,15 +6,21 @@ const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
+
+// Fast CORS and Socket Settings
 const io = new Server(server, {
   cors: { origin: "*" },
-  pingTimeout: 60000,
-  pingInterval: 25000
+  transports: ['polling', 'websocket'],
+  allowEIO3: true
 });
 
 const PORT = process.env.PORT || 10000;
 
+app.use(express.json());
 app.use(express.static(__dirname));
+
+// Keep-alive ping endpoint (taaki server turant wake-up rahe)
+app.get('/ping', (req, res) => res.send('pong'));
 
 function sendFileSafe(filename, mimeType, res) {
   const localP = path.join(__dirname, filename);
@@ -35,118 +41,84 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
-// ACTIVE ROOMS REGISTRY
+// ACTIVE ROOMS
 const rooms = {};
 const COLOR_ORDER = ['red', 'yellow', 'green', 'blue'];
 
+// FAST REST API FOR INSTANT ROOM CREATION & CHECKING
+app.post('/api/create-room', (req, res) => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+
+  const hostName = (req.body.hostName || 'Host Player').trim();
+  rooms[code] = {
+    roomCode: code,
+    hostId: null,
+    gameStarted: false,
+    players: [{ id: null, name: hostName, color: 'red', isHost: true }]
+  };
+  res.json({ success: true, roomCode: code, color: 'red' });
+});
+
+app.post('/api/check-room', (req, res) => {
+  const code = (req.body.roomCode || '').trim().toUpperCase();
+  const room = rooms[code];
+  if (!room) return res.json({ success: false, message: 'Galat Room Code! Room nahi mila.' });
+  if (room.gameStarted) return res.json({ success: false, message: 'Game pehle shuru ho chuka hai!' });
+  if (room.players.length >= 4) return res.json({ success: false, message: 'Room full hai!' });
+  res.json({ success: true, roomCode: code });
+});
+
+// REALTIME SOCKET HANDLING
 io.on('connection', (socket) => {
-  console.log('[Socket Connected]:', socket.id);
-
-  // 1. CREATE ROOM (Server-side generated only)
-  socket.on('createRoom', ({ hostName }) => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-
-    const host = (hostName || 'Host Player').trim();
-    rooms[code] = {
-      roomCode: code,
-      hostId: socket.id,
-      gameStarted: false,
-      players: [{ id: socket.id, name: host, color: 'red', isHost: true }]
-    };
-
-    socket.join(code);
-    socket.roomCode = code;
-    socket.playerColor = 'red';
-
-    socket.emit('roomCreatedSuccess', {
-      roomCode: code,
-      players: rooms[code].players,
-      myColor: 'red',
-      isHost: true
-    });
-    console.log(`[Room Created] Code: ${code} by ${host}`);
-  });
-
-  // 2. JOIN ROOM
-  socket.on('joinRoom', ({ playerName, roomCode }) => {
+  // Join socket channel to room
+  socket.on('registerInRoom', ({ roomCode, playerName, isHost }) => {
     const code = (roomCode || '').trim().toUpperCase();
     const room = rooms[code];
+    if (!room) return socket.emit('roomError', 'Room expire ho chuka hai.');
 
-    if (!room) {
-      socket.emit('roomError', `Galat Room Code (${code})! Server par aisa koi room nahi hai.`);
-      return;
-    }
-    if (room.gameStarted) {
-      socket.emit('roomError', 'Game pehle hi start ho chuka hai!');
-      return;
-    }
-    if (room.players.length >= 4) {
-      socket.emit('roomError', 'Room pehle se full hai (Max 4 Players)!');
-      return;
-    }
-
-    const assignedColor = COLOR_ORDER[room.players.length];
-    const guest = (playerName || `Player ${room.players.length + 1}`).trim();
-    const newPlayer = {
-      id: socket.id,
-      name: guest,
-      color: assignedColor,
-      isHost: false
-    };
-
-    room.players.push(newPlayer);
     socket.join(code);
     socket.roomCode = code;
-    socket.playerColor = assignedColor;
 
-    socket.emit('roomJoinedSuccess', {
-      roomCode: code,
-      players: room.players,
-      myColor: assignedColor,
-      isHost: false
-    });
+    if (isHost) {
+      room.hostId = socket.id;
+      room.players[0].id = socket.id;
+      socket.playerColor = 'red';
+      socket.emit('roomCreatedSuccess', { roomCode: code, players: room.players, myColor: 'red' });
+    } else {
+      const assignedColor = COLOR_ORDER[room.players.length] || 'yellow';
+      const guest = (playerName || `Player ${room.players.length + 1}`).trim();
+      const existing = room.players.find(p => p.id === socket.id);
+      if (!existing) {
+        room.players.push({ id: socket.id, name: guest, color: assignedColor, isHost: false });
+      }
+      socket.playerColor = assignedColor;
+      socket.emit('roomJoinedSuccess', { roomCode: code, players: room.players, myColor: assignedColor });
+    }
 
-    // Notify all players in room
-    io.to(code).emit('lobbyPlayerUpdate', {
-      players: room.players,
-      hostId: room.hostId
-    });
-    console.log(`[Player Joined] ${guest} joined Room: ${code}. Total players: ${room.players.length}`);
+    io.to(code).emit('lobbyPlayerUpdate', { players: room.players, hostId: room.hostId });
   });
 
-  // 3. START GAME (Only Host can trigger)
   socket.on('startOnlineGame', () => {
     const room = rooms[socket.roomCode];
     if (!room) return;
-    if (room.hostId !== socket.id) {
-      socket.emit('roomError', 'Sirf Host game shuru kar sakta hai!');
-      return;
-    }
     if (room.players.length < 2) {
-      socket.emit('roomError', 'Kam se kam 2 devices / players judne chahiye!');
-      return;
+      return socket.emit('roomError', 'Kam se kam 2 players chahiye!');
     }
-
     room.gameStarted = true;
     io.to(socket.roomCode).emit('onlineGameStarted', {
       players: room.players,
       activeColor: 'red'
     });
-    console.log(`[Game Started] In Room: ${socket.roomCode}`);
   });
 
-  // 4. REALTIME SYNC (Dice Roll & Token Move)
   socket.on('broadcastGameAction', (actionData) => {
     if (socket.roomCode) {
       socket.to(socket.roomCode).emit('receiveGameAction', actionData);
     }
   });
 
-  // 5. DISCONNECT HANDLER
   socket.on('disconnect', () => {
     const code = socket.roomCode;
     const room = rooms[code];
@@ -154,21 +126,17 @@ io.on('connection', (socket) => {
       room.players = room.players.filter(p => p.id !== socket.id);
       if (room.players.length === 0) {
         delete rooms[code];
-        console.log(`[Room Cleaned] Room ${code} closed`);
       } else {
         if (room.hostId === socket.id) {
           room.hostId = room.players[0].id;
-          room.players[0].isHost = true;
+          if (room.players[0]) room.players[0].isHost = true;
         }
-        io.to(code).emit('lobbyPlayerUpdate', {
-          players: room.players,
-          hostId: room.hostId
-        });
+        io.to(code).emit('lobbyPlayerUpdate', { players: room.players, hostId: room.hostId });
       }
     }
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo Real-time Engine running on port ${PORT}`);
+  console.log(`Ludo Fast-Engine running on port ${PORT}`);
 });
