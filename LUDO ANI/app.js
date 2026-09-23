@@ -1,26 +1,16 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH DIRECT INSTANT WEBSOCKET
+ * LUDO ROYALE - COMPLETE CLIENT GAME ENGINE (EXACT MATCHING STAR & FIXED ROOM SYNC)
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Direct socket instance
-  let socket = null;
-  function getSocketInstance() {
-    if (!socket && typeof io !== 'undefined') {
-      socket = io({
-        transports: ['polling', 'websocket'],
-        reconnection: true
-      });
-      setupRoomSocketListeners();
-    }
-    return socket;
-  }
+  // Global socket setup
+  const socket = (typeof io !== 'undefined') ? io({ transports: ['polling', 'websocket'] }) : null;
 
-  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
+  // 1. SOUND MANAGER
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -139,7 +129,7 @@
     }
   };
 
-  // 2. 15x15 BOARD COORDINATES
+  // 2. COORDINATES & PATH GEOMETRY
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -174,7 +164,7 @@
     }
   }
 
-  // 3. GAME STATE
+  // 3. GAME RULES & STATE ENGINE
   const GAME_RULES = { THREE_SIX_PENALTY: true };
 
   const GameState = {
@@ -250,7 +240,7 @@
     }
   };
 
-  // 4. UI BUILDER
+  // 4. UI BUILDER (Exact photo matched stars)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -273,6 +263,7 @@
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
+        // Reference Matched Star Placement
         if ((r === 12 && c === 8) || (r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12)) {
           cell.classList.add('safe-cell-star');
         }
@@ -408,9 +399,8 @@
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     applyDiceRoll(finalRoll);
 
-    const s = getSocketInstance();
-    if (GameState.isOnline && s) {
-      s.emit('broadcastGameAction', {
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
         type: 'DICE_ROLLED',
         roll: finalRoll
       });
@@ -457,9 +447,8 @@
       await new Promise(res => setTimeout(res, 350));
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
-      const s = getSocketInstance();
-      if (GameState.isOnline && s && currentPlayer.color === GameState.myOnlineColor) {
-        s.emit('broadcastGameAction', {
+      if (GameState.isOnline && socket && currentPlayer.color === GameState.myOnlineColor) {
+        socket.emit('broadcastGameAction', {
           type: 'TOKEN_MOVED',
           color: currentPlayer.color,
           tokenId: legalTokenIds[0]
@@ -489,9 +478,8 @@
     clearTokenHighlights();
     executeMove(color, id);
 
-    const s = getSocketInstance();
-    if (GameState.isOnline && s) {
-      s.emit('broadcastGameAction', {
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
         type: 'TOKEN_MOVED',
         color: color,
         tokenId: id
@@ -672,6 +660,7 @@
       const btnCreate = document.getElementById('btn-create-room');
       const btnJoin = document.getElementById('btn-join-room');
       btnCreate.innerText = 'CREATE ROOM';
+      btnCreate.disabled = false;
       btnJoin.innerText = 'JOIN ROOM';
       btnJoin.disabled = false;
     });
@@ -684,6 +673,7 @@
 
       const btnCreate = document.getElementById('btn-create-room');
       btnCreate.innerText = 'START ONLINE GAME (Waiting for friend...)';
+      btnCreate.disabled = false;
       btnCreate.classList.remove('btn-secondary');
       btnCreate.classList.add('btn-primary');
       btnCreate.onclick = () => socket.emit('startOnlineGame');
@@ -783,29 +773,30 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // DIRECT SOCKET ROOM CREATION
+    // DIRECT CREATE ROOM
     document.getElementById('btn-create-room').addEventListener('click', () => {
-      const s = getSocketInstance();
-      if (!s) return alert('Connecting... Please wait 1-2 seconds');
+      if (!socket) return alert('Server connecting... Kripya refresh karein.');
       const btn = document.getElementById('btn-create-room');
       btn.innerText = 'Creating Room...';
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-      s.emit('createRoom', { hostName: name });
+      socket.emit('createRoom', { hostName: name });
     });
 
-    // DIRECT SOCKET ROOM JOIN
+    // DIRECT JOIN ROOM (Robust input cleaning)
     document.getElementById('btn-join-room').addEventListener('click', () => {
-      const s = getSocketInstance();
-      if (!s) return alert('Connecting... Please wait 1-2 seconds');
+      if (!socket) return alert('Server connecting... Kripya refresh karein.');
+      const btn = document.getElementById('btn-join-room');
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
-      const code = document.getElementById('join-room-code').value.trim().toUpperCase();
+      const rawInput = document.getElementById('join-room-code').value || '';
+      const code = rawInput.trim().toUpperCase().replace(/\s+/g, '');
 
-      if (!code || code.length !== 6) {
-        return alert('Kripya sahi 6-character room code daalein!');
+      if (!code || code.length < 4) {
+        return alert('Kripya sahi room code daalein!');
       }
 
-      document.getElementById('btn-join-room').innerText = 'Joining...';
-      s.emit('joinRoom', { playerName: name, roomCode: code });
+      btn.innerText = 'Joining...';
+      btn.disabled = true;
+      socket.emit('joinRoom', { playerName: name, roomCode: code });
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -858,8 +849,7 @@
       }
     });
 
-    // Auto trigger socket connection
-    getSocketInstance();
+    setupRoomSocketListeners();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
