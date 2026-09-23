@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ludo Royale - 4-Digit Multiplayer</title>
+  <title>Ludo Royale - Direct Multiplayer</title>
 
-  <!-- PWA & Mobile App Icons -->
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png">
@@ -15,11 +14,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link rel="stylesheet" href="style.css">
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <!-- Audio unlock banner for mobile browsers -->
   <div id="audio-unlock-overlay">
     <div class="unlock-box">
       <h2>🎲 LUDO ROYALE</h2>
@@ -28,18 +26,15 @@
     </div>
   </div>
 
-  <!-- MAIN NAVIGATION & LOBBY SYSTEM -->
   <div id="lobby-screen" class="screen-view">
     <div class="lobby-card">
       <h1 class="game-logo">🎲 LUDO ROYALE</h1>
       
-      <!-- Mode Selection Tabs -->
       <div class="mode-tabs">
         <button class="tab-btn active" data-tab="tab-passplay">PASS & PLAY</button>
         <button class="tab-btn" data-tab="tab-room">ROOM LOBBY</button>
       </div>
 
-      <!-- Tab 1: Pass & Play -->
       <div id="tab-passplay" class="tab-content active">
         <div class="section-label">Select Number of Players</div>
         <div class="player-count-group">
@@ -54,7 +49,6 @@
         <button class="btn btn-primary btn-large" id="btn-start-passplay">START GAME</button>
       </div>
 
-      <!-- Tab 2: 4-Digit Integer Room Lobby -->
       <div id="tab-room" class="tab-content">
         <div class="room-action-cards">
           <div class="room-box">
@@ -63,7 +57,7 @@
             <button class="btn btn-secondary" id="btn-create-room">CREATE ROOM</button>
             <div id="created-code-box" class="code-badge" style="display:none;">
               <span>4-DIGIT CODE:</span>
-              <strong id="display-room-code" style="font-size: 20px; letter-spacing: 4px; color: #facc15;">----</strong>
+              <strong id="display-room-code" style="font-size: 22px; letter-spacing: 4px; color: #facc15;">----</strong>
             </div>
           </div>
 
@@ -80,7 +74,6 @@
     </div>
   </div>
 
-  <!-- GAMEPLAY SCREEN -->
   <div id="game-screen" class="screen-view" style="display: none;">
     <header class="game-hud">
       <div class="hud-left">
@@ -98,11 +91,8 @@
       </div>
     </header>
 
-    <!-- Main Dynamic Board Layout Container -->
     <main class="board-wrapper">
       <div id="ludo-board" class="ludo-board">
-        
-        <!-- YARDS / HOME BASES -->
         <div class="yard yard-green" id="yard-green">
           <div class="yard-label" id="label-green">GREEN</div>
           <div class="yard-inner-card">
@@ -143,7 +133,6 @@
           </div>
         </div>
 
-        <!-- 3x3 Center Triangular Destination -->
         <div class="board-center-triangle">
           <div class="triangle-part tri-green"></div>
           <div class="triangle-part tri-yellow"></div>
@@ -152,15 +141,11 @@
           <div class="center-trophy">🏆</div>
         </div>
 
-        <!-- Generated Grid Cells -->
         <div id="cells-layer" class="cells-grid-layer"></div>
-
-        <!-- Movable Tokens Layer -->
         <div id="tokens-layer" class="tokens-interactive-layer"></div>
       </div>
     </main>
 
-    <!-- BOTTOM CONTROL BAR: Physical 3D Dice -->
     <footer class="game-footer-dock">
       <div class="player-indicator-badge" id="active-badge-card">
         <div class="pin-sample" id="badge-pin-icon"></div>
@@ -186,7 +171,6 @@
     </footer>
   </div>
 
-  <!-- MODALS -->
   <div id="settings-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-dialog">
       <h2>Game Settings</h2>
