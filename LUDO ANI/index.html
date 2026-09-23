@@ -21,7 +21,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     
-    /* Blue textured background matching photo */
+    /* Photo Matching Pattern Background */
     body {
       background: #0284c7;
       background-image: radial-gradient(#38bdf8 15%, transparent 16%), radial-gradient(#0369a1 15%, transparent 16%);
@@ -50,7 +50,7 @@
 
     #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; }
 
-    /* Top Player 2 Box (Matching Photo) */
+    /* Top Player 2 Box (Exact Photo Layout) */
     .top-bar-box {
       width: 94vw; max-width: 410px; display: flex; justify-content: flex-end; margin-bottom: 8px;
     }
@@ -63,7 +63,7 @@
       display: flex; align-items: center; justify-content: center; margin-left: 6px;
     }
 
-    /* Authentic 15x15 Ludo Grid */
+    /* 15x15 Ludo Grid */
     #board-container {
       width: 94vw; max-width: 410px; height: 94vw; max-height: 410px;
       position: relative; background: #ffffff; border: 4px solid #1e293b;
@@ -79,7 +79,7 @@
       font-size: 14px; font-weight: bold;
     }
 
-    /* 4 Corner Home Bases (Strictly Matching Screenshot) */
+    /* 4 Corner Home Bases */
     .home-box { position: absolute; border: 3px solid #1e293b; display: grid; place-items: center; }
     .hb-green  { top: 0; left: 0; width: 40%; height: 40%; background: var(--board-green); }
     .hb-yellow { top: 0; right: 0; width: 40%; height: 40%; background: var(--board-yellow); }
@@ -108,7 +108,7 @@
     /* Center Triangle */
     .center-finish {
       position: absolute; top: 40%; left: 40%; width: 20%; height: 20%;
-      background: conic-gradient(var(--board-yellow) 0deg 90deg, var(--board-blue) 90deg 180deg, var(--board-red) 270deg 360deg, var(--board-green) 0deg 90deg);
+      background: conic-gradient(var(--board-yellow) 0deg 90deg, var(--board-blue) 90deg 180deg, var(--board-red) 180deg 270deg, var(--board-green) 270deg 360deg);
       border: 2px solid #1e293b;
     }
 
@@ -120,19 +120,19 @@
 
     .star-symbol { font-size: 20px; color: #64748b; font-weight: normal; }
 
-    /* Photo jaisi Map-Pin Goti with Shadow */
+    /* Pin Goti with Shadow */
     .pin {
       width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg); cursor: pointer; border: 2.5px solid #ffffff;
       box-shadow: 0 4px 6px rgba(0,0,0,0.6); position: absolute; z-index: 20;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease-out;
     }
     .pin-red    { background: #dc2626; }
     .pin-green  { background: #16a34a; }
     .pin-yellow { background: #facc15; }
     .pin-blue   { background: #2563eb; }
 
-    /* Bottom Control Bar with Dice & Pin icon right below Red home */
+    /* Bottom Control Bar */
     .bottom-bar {
       width: 94vw; max-width: 410px; margin-top: 14px;
       display: flex; align-items: center; justify-content: flex-start; gap: 10px;
@@ -161,7 +161,6 @@
       to { transform: translateX(6px); }
     }
 
-    /* Lobby List */
     .player-list { list-style: none; margin: 15px 0; padding: 0; }
     .player-list li {
       background: #334155; padding: 10px; border-radius: 8px; margin: 6px 0;
@@ -171,30 +170,30 @@
 </head>
 <body>
 
-  <!-- 1. Main Menu -->
+  <!-- Menu View -->
   <div id="menuView" class="panel">
     <h1 style="margin-bottom:15px; color:#38bdf8;">🎲 LUDO ROYALE</h1>
     <input id="nameInput" placeholder="Apna Naam Likhein" />
-    <button class="btn btn-ai" onclick="startAI()">🤖 Play vs Computer (AI)</button>
+    <button class="btn btn-ai" onclick="startAI()">⚡ 1v1 Play vs Fast AI</button>
     <button class="btn btn-green" onclick="createRoom()">🏠 Create Online Room</button>
     <div style="margin: 10px 0; font-size: 12px; color:#94a3b8;">— YA 4-DIGIT CODE SE JOIN KAREIN —</div>
     <input id="codeInput" placeholder="Room Code" maxlength="4" />
     <button class="btn btn-blue" onclick="joinRoom()">🔑 Join Room</button>
   </div>
 
-  <!-- 2. Room Lobby (Code aur Players dikhane ke liye) -->
+  <!-- Room Lobby View -->
   <div id="lobbyView" class="panel" style="display:none;">
     <h2 style="color:#facc15;">🏠 Room Lobby</h2>
     <div style="font-size:14px; color:#94a3b8; margin-top:8px;">Dosto ko yeh 4-Digit code bhejein:</div>
     <div id="lobbyCode" style="font-size:32px; font-weight:bold; letter-spacing:4px; color:#38bdf8; margin:10px 0;">----</div>
     <ul id="playerList" class="player-list"></ul>
     <button id="startBtn" class="btn btn-green" style="display:none;" onclick="startGame()">▶️ Game Shuru Karein</button>
-    <div id="waitMsg" style="font-size:13px; color:#fbbf24; margin-top:8px;">Host ke game start karne ka intezar karein...</div>
+    <div id="waitMsg" style="font-size:13px; color:#fbbf24; margin-top:8px;">Host ke start karne ka intezar karein (Min 2 Players)...</div>
   </div>
 
-  <!-- 3. Game Area -->
+  <!-- Game Canvas -->
   <div id="gameArea">
-    <!-- Top Player 2 Box (Matching Photo) -->
+    <!-- Top Player 2 Box -->
     <div class="top-bar-box">
       <div class="player-indicator-card">
         <div id="topPlayerName" style="font-size:12px; font-weight:bold; color:#000; margin-right:5px;">Player 2</div>
@@ -204,7 +203,7 @@
       </div>
     </div>
 
-    <!-- 15x15 Ludo Board (Exact photo alignment) -->
+    <!-- 15x15 Ludo Board -->
     <div id="board-container">
       <div id="board"></div>
       
@@ -254,7 +253,7 @@
       <div class="center-finish"></div>
     </div>
 
-    <!-- Bottom Player 1 Controls (Theek Red ke neeche jaise photo me hai) -->
+    <!-- Bottom Controls -->
     <div class="bottom-bar">
       <div class="dice-card">
         <div class="badge-icon">
@@ -276,8 +275,75 @@
     let myColor = 'red';
     let currentTokens = {};
     let isMyTurn = false;
+    let isMoving = false;
 
-    // Grid coordinates builder
+    // Advance Synthesizer Sound Engine
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContextClass();
+
+    function playAudioFx(fx) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+
+      if (fx === 'puk') {
+        // Goti step wooden knock: puk puk puk
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.08);
+      } else if (fx === 'yes') {
+        // 6 se goti nikalne par: celebratory Yes trumpet
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, now + i * 0.07);
+          gain.gain.setValueAtTime(0.15, now + i * 0.07);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.07 + 0.18);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now + i * 0.07); osc.stop(now + i * 0.07 + 0.18);
+        });
+      } else if (fx === 'puipui') {
+        // Goti katne par descending slide: pui-pui-pui
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.45);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.45);
+      } else if (fx === 'twinkle') {
+        // Laal hone par magical star twinkling chime
+        [1046.5, 1318.5, 1567.98, 2093.0].forEach((f, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + idx * 0.09);
+          gain.gain.setValueAtTime(0.25, now + idx * 0.09);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.35);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.09); osc.stop(now + idx * 0.09 + 0.35);
+        });
+      } else if (fx === 'dice') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(220, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.09);
+      }
+    }
+
+    // Build 15x15 Board matching photo
     function buildBoard() {
       const b = document.getElementById('board');
       b.innerHTML = '';
@@ -288,28 +354,28 @@
           cell.className = 'cell';
           cell.id = `c_${r}_${c}`;
 
-          // Red Path (From Red Home at bottom-left: column 1, row 6 up to column 7)
+          // Red Path
           if (c === 7 && r >= 9 && r <= 13) cell.classList.add('bg-red');
-          if (r === 13 && c === 6) cell.classList.add('bg-red'); // Red start
+          if (r === 13 && c === 6) cell.classList.add('bg-red');
 
-          // Green Path (From Green Home top-left)
+          // Green Path
           if (r === 7 && c >= 1 && c <= 5) cell.classList.add('bg-green');
-          if (r === 6 && c === 1) cell.classList.add('bg-green'); // Green start
+          if (r === 6 && c === 1) cell.classList.add('bg-green');
 
-          // Yellow Path (From Yellow Home top-right)
+          // Yellow Path
           if (c === 7 && r >= 1 && r <= 5) cell.classList.add('bg-yellow');
-          if (r === 1 && c === 8) cell.classList.add('bg-yellow'); // Yellow start
+          if (r === 1 && c === 8) cell.classList.add('bg-yellow');
 
-          // Blue Path (From Blue Home bottom-right)
+          // Blue Path
           if (r === 7 && c >= 9 && c <= 13) cell.classList.add('bg-blue');
-          if (r === 8 && c === 13) cell.classList.add('bg-blue'); // Blue start
+          if (r === 8 && c === 13) cell.classList.add('bg-blue');
 
-          // Exact 4 Safe Stars matching screenshot
+          // 4 Hollow Stars matching photo
           if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
             cell.innerHTML = '<span class="star-symbol">☆</span>';
           }
 
-          // Exact entry arrows matching screenshot
+          // Entry arrows
           if (r === 14 && c === 7) cell.innerHTML = '↑';
           if (r === 7 && c === 0) cell.innerHTML = '→';
           if (r === 0 && c === 7) cell.innerHTML = '↓';
@@ -321,7 +387,7 @@
     }
     buildBoard();
 
-    // 52 Global track steps starting from Red (r:13, c:6)
+    // 52 Global track steps
     const trackCoords = [
       [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
       [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -333,7 +399,6 @@
       if (step === -1) return null;
       if (step === 56) return 'c_7_7';
 
-      // Offsets matching clockwise track
       const offsets = { red: 0, green: 13, yellow: 26, blue: 39 };
       if (step < 51) {
         const idx = (offsets[color] + step) % 52;
@@ -371,26 +436,16 @@
     }
 
     function rollDice() {
-      if (!isMyTurn) return;
+      if (!isMyTurn || isMoving) return;
+      playAudioFx('dice');
       socket.emit('rollDice');
     }
 
-    // Socket Responses
-    socket.on('gameError', (msg) => {
-      alert(msg);
-    });
+    socket.on('gameError', (msg) => alert(msg));
 
-    socket.on('roomCreated', (data) => {
-      showLobby(data.roomCode, data.players, true);
-    });
-
-    socket.on('roomJoinedSuccess', (data) => {
-      showLobby(data.roomCode, data.players, false);
-    });
-
-    socket.on('lobbyUpdate', (data) => {
-      updateLobby(data.players, data.hostId);
-    });
+    socket.on('roomCreated', (data) => showLobby(data.roomCode, data.players, true));
+    socket.on('roomJoinedSuccess', (data) => showLobby(data.roomCode, data.players, false));
+    socket.on('lobbyUpdate', (data) => updateLobby(data.players, data.hostId));
 
     function showLobby(code, players, isHost) {
       document.getElementById('menuView').style.display = 'none';
@@ -438,11 +493,77 @@
       updateTurnIndicator(data.activeColor);
     });
 
+    // Step-by-step Animated Walking with Puk-Puk, Yes, Pui-Pui, Twinkle
     socket.on('tokenMoved', (data) => {
-      currentTokens = data.tokens;
-      renderAllTokens();
-      updateTurnIndicator(data.activeColor);
+      isMoving = true;
+      const { moveColor, tokenIndex, fromStep, toStep, eventType, tokens, activeColor, killedInfo } = data;
+
+      if (eventType === 'out') {
+        // Goti 6 se nikli: Yes audio fx
+        playAudioFx('yes');
+        currentTokens = tokens;
+        renderAllTokens();
+        isMoving = false;
+        updateTurnIndicator(activeColor);
+      } else {
+        // Step by step walking
+        let cur = fromStep;
+        const walkInterval = setInterval(() => {
+          cur++;
+          playAudioFx('puk'); // Har kadam par puk-puk
+          renderSingleStep(moveColor, tokenIndex, cur);
+
+          if (cur >= toStep) {
+            clearInterval(walkInterval);
+
+            if (eventType === 'home') {
+              playAudioFx('twinkle'); // Laal hone par twinkle sound
+            }
+
+            if (eventType === 'kill' && killedInfo) {
+              // Backward reverse trail with pui-pui sound
+              playAudioFx('puipui');
+              animateReverseKill(killedInfo.color, killedInfo.index, killedInfo.fromStep, () => {
+                currentTokens = tokens;
+                renderAllTokens();
+                isMoving = false;
+                updateTurnIndicator(activeColor);
+              });
+            } else {
+              currentTokens = tokens;
+              renderAllTokens();
+              isMoving = false;
+              updateTurnIndicator(activeColor);
+            }
+          }
+        }, 160); // Aram-aram se chalne ka time
+      }
     });
+
+    function renderSingleStep(col, tokIdx, step) {
+      document.querySelectorAll(`.pin-${col}-${tokIdx}`).forEach(e => e.remove());
+      const cellId = getCellIdForStep(col, step);
+      const target = document.getElementById(cellId);
+      if (target) {
+        const pin = document.createElement('div');
+        pin.className = `pin pin-${col} pin-${col}-${tokIdx} pin-on-board`;
+        target.appendChild(pin);
+      }
+    }
+
+    // Reverse path animation for killed goti
+    function animateReverseKill(kCol, kIdx, kFromStep, onDone) {
+      let backStep = kFromStep;
+      const backInterval = setInterval(() => {
+        backStep -= 2; // Fast rewind
+        if (backStep <= 0) {
+          clearInterval(backInterval);
+          onDone();
+        } else {
+          renderSingleStep(kCol, kIdx, backStep);
+        }
+      }, 70);
+    }
 
     function updateTurnIndicator(activeColor) {
       isMyTurn = (activeColor === myColor);
@@ -465,9 +586,9 @@
             if (slot) {
               slot.innerHTML = '';
               const pin = document.createElement('div');
-              pin.className = `pin pin-${col}`;
+              pin.className = `pin pin-${col} pin-${col}-${idx}`;
               pin.onclick = () => {
-                if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+                if (isMyTurn && !isMoving && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
               };
               slot.appendChild(pin);
             }
@@ -476,9 +597,9 @@
             const targetCell = document.getElementById(cellId);
             if (targetCell) {
               const pin = document.createElement('div');
-              pin.className = `pin pin-${col} pin-on-board`;
+              pin.className = `pin pin-${col} pin-${col}-${idx} pin-on-board`;
               pin.onclick = () => {
-                if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+                if (isMyTurn && !isMoving && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
               };
               targetCell.appendChild(pin);
             }
@@ -487,10 +608,9 @@
       });
     }
 
-    // Rank & GameOver Modal
     socket.on('playerRanked', ({ color, name, rank }) => {
       const ranks = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
-      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home karke ${ranks[rank-1] || rank} position paayi!`);
+      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan laal karke ${ranks[rank-1] || rank} rank haasil ki!`);
     });
 
     socket.on('gameOver', ({ winners, loser }) => {
