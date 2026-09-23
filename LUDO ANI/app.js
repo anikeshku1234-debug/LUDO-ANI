@@ -1,15 +1,16 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT GAME ENGINE (VANILLA JS ES6+)
+ * LUDO ROYALE - CLIENT ENGINE WITH REAL ONLINE ROOM NETWORKING
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // --------------------------------------------------------------------------
-  // 1. DEDICATED WEB AUDIO SYNTHESIZER
-  // --------------------------------------------------------------------------
+  // Initialize Socket.io Connection
+  const socket = typeof io !== 'undefined' ? io() : null;
+
+  // 1. SOUND MANAGER
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -128,9 +129,7 @@
     }
   };
 
-  // --------------------------------------------------------------------------
-  // 2. COORDINATES & PATH GEOMETRY (15x15 Reference Layout)
-  // --------------------------------------------------------------------------
+  // 2. COORDINATES & PATH GEOMETRY
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -165,14 +164,12 @@
     }
   }
 
-  // --------------------------------------------------------------------------
-  // 3. CENTRALIZED GAME RULES & STATE ENGINE
-  // --------------------------------------------------------------------------
-  const GAME_RULES = {
-    THREE_SIX_PENALTY: true
-  };
+  // 3. RULES & STATE ENGINE
+  const GAME_RULES = { THREE_SIX_PENALTY: true };
 
   const GameState = {
+    isOnline: false,
+    myOnlineColor: 'red',
     players: [],
     activePlayerIndices: [],
     turnPointer: 0,
@@ -183,7 +180,9 @@
     winners: [],
     tokens: {},
 
-    init(configuredPlayers) {
+    init(configuredPlayers, isOnline = false, myOnlineColor = 'red') {
+      this.isOnline = isOnline;
+      this.myOnlineColor = myOnlineColor;
       this.players = configuredPlayers;
       this.activePlayerIndices = configuredPlayers.map((_, idx) => idx);
       this.turnPointer = 0;
@@ -228,9 +227,7 @@
       this.diceValue = null;
       this.consecutiveSixes = 0;
 
-      if (this.winners.length >= this.players.length - 1) {
-        return;
-      }
+      if (this.winners.length >= this.players.length - 1) return;
 
       let count = this.activePlayerIndices.length;
       let nextPtr = (this.turnPointer + 1) % count;
@@ -245,9 +242,7 @@
     }
   };
 
-  // --------------------------------------------------------------------------
-  // 4. UI BUILDER & BOARD RENDERER
-  // --------------------------------------------------------------------------
+  // 4. UI BUILDER
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -333,7 +328,6 @@
 
         tokenEl.style.top = `${coords.top}px`;
         tokenEl.style.left = `${coords.left}px`;
-
         tokenEl.addEventListener('click', onTokenClicked);
         layer.appendChild(tokenEl);
       });
@@ -363,9 +357,7 @@
     });
   }
 
-  // --------------------------------------------------------------------------
-  // 5. ANIMATIONS (CELL-BY-CELL STEPPING & REVERSE RETURN)
-  // --------------------------------------------------------------------------
+  // 5. ANIMATIONS (STEPPING & REWIND)
   async function animateTokenSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -398,15 +390,28 @@
     tokenEl.style.left = `${baseCoords.left}px`;
   }
 
-  // --------------------------------------------------------------------------
-  // 6. GAME CONTROLLER & TURN LOGIC
-  // --------------------------------------------------------------------------
+  // 6. GAMEPLAY & NETWORKING SYNC
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
 
     const currentPlayer = GameState.getCurrentPlayer();
     if (!currentPlayer) return;
 
+    // Online turn guard
+    if (GameState.isOnline && currentPlayer.color !== GameState.myOnlineColor) return;
+
+    const finalRoll = Math.floor(Math.random() * 6) + 1;
+    applyDiceRoll(finalRoll);
+
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
+        type: 'DICE_ROLLED',
+        roll: finalRoll
+      });
+    }
+  }
+
+  async function applyDiceRoll(finalRoll) {
     GameState.isRolling = true;
     setDiceInteractionEnabled(false);
 
@@ -414,7 +419,6 @@
     const diceEl = document.getElementById('dice-3d-box');
     diceEl.className = 'dice-cube rolling-3d';
 
-    const finalRoll = Math.floor(Math.random() * 6) + 1;
     await new Promise(res => setTimeout(res, 850));
 
     diceEl.className = `dice-cube show-${finalRoll}`;
@@ -435,6 +439,7 @@
       return;
     }
 
+    const currentPlayer = GameState.getCurrentPlayer();
     const legalTokenIds = GameState.getLegalMoves(currentPlayer.color, finalRoll);
 
     if (legalTokenIds.length === 0) {
@@ -443,12 +448,22 @@
       GameState.advanceTurn();
       syncUIWithTurn();
     } else if (legalTokenIds.length === 1) {
-      // Auto-move feature when only 1 choice is available
+      // Auto move feature
       await new Promise(res => setTimeout(res, 350));
       executeMove(currentPlayer.color, legalTokenIds[0]);
+
+      if (GameState.isOnline && socket && currentPlayer.color === GameState.myOnlineColor) {
+        socket.emit('broadcastGameAction', {
+          type: 'TOKEN_MOVED',
+          color: currentPlayer.color,
+          tokenId: legalTokenIds[0]
+        });
+      }
     } else {
-      highlightMovableTokens(currentPlayer.color, legalTokenIds);
-      showTurnNotification("Select a Token to Move");
+      if (!GameState.isOnline || currentPlayer.color === GameState.myOnlineColor) {
+        highlightMovableTokens(currentPlayer.color, legalTokenIds);
+        showTurnNotification("Select a Token to Move");
+      }
     }
   }
 
@@ -460,12 +475,21 @@
     const currentPlayer = GameState.getCurrentPlayer();
 
     if (color !== currentPlayer.color) return;
+    if (GameState.isOnline && color !== GameState.myOnlineColor) return;
 
     const legalTokens = GameState.getLegalMoves(color, GameState.diceValue);
     if (!legalTokens.includes(id)) return;
 
     clearTokenHighlights();
     executeMove(color, id);
+
+    if (GameState.isOnline && socket) {
+      socket.emit('broadcastGameAction', {
+        type: 'TOKEN_MOVED',
+        color: color,
+        tokenId: id
+      });
+    }
   }
 
   async function executeMove(color, tokenId) {
@@ -565,7 +589,8 @@
     document.getElementById('footer-player-status').innerText = 'ROLL THE DICE';
     document.getElementById('badge-pin-icon').className = `pin-sample token-${p.color}`;
 
-    setDiceInteractionEnabled(true);
+    const canRoll = !GameState.isOnline || (p.color === GameState.myOnlineColor);
+    setDiceInteractionEnabled(canRoll);
   }
 
   function setDiceInteractionEnabled(enable) {
@@ -610,15 +635,12 @@
     modal.style.display = 'flex';
   }
 
-  // --------------------------------------------------------------------------
-  // 7. LOBBY CONTROLLER & APP INITIALIZATION
-  // --------------------------------------------------------------------------
+  // 7. PASS & PLAY LAUNCHER
   let selectedCount = 3;
 
   function renderLobbyInputs(count) {
     const container = document.getElementById('player-inputs-container');
     container.innerHTML = '';
-
     const colors = (count === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, count);
 
     colors.forEach((c, i) => {
@@ -632,21 +654,7 @@
     });
   }
 
-  function startPassAndPlayMatch() {
-    SoundManager.init();
-
-    const colors = (selectedCount === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, selectedCount);
-    const configuredPlayers = [];
-
-    colors.forEach(c => {
-      const inp = document.getElementById(`name-input-${c}`);
-      configuredPlayers.push({
-        id: `local_${c}`,
-        color: c,
-        name: inp ? inp.value.trim() || c.toUpperCase() : c.toUpperCase()
-      });
-    });
-
+  function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const yard = document.getElementById(`yard-${c}`);
       const label = document.getElementById(`label-${c}`);
@@ -661,8 +669,7 @@
       }
     });
 
-    GameState.init(configuredPlayers);
-
+    GameState.init(configuredPlayers, isOnline, myColor);
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
 
@@ -671,6 +678,61 @@
     syncUIWithTurn();
   }
 
+  function startPassAndPlayMatch() {
+    SoundManager.init();
+    const colors = (selectedCount === 2) ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'].slice(0, selectedCount);
+    const configuredPlayers = colors.map(c => {
+      const inp = document.getElementById(`name-input-${c}`);
+      return {
+        id: `local_${c}`,
+        color: c,
+        name: inp ? inp.value.trim() || c.toUpperCase() : c.toUpperCase()
+      };
+    });
+    launchGameBoard(configuredPlayers, false);
+  }
+
+  // 8. ONLINE ROOM CONTROLLER
+  function setupRoomSocketListeners() {
+    if (!socket) return;
+
+    socket.on('roomError', (msg) => alert(msg));
+
+    socket.on('roomCreatedSuccess', (data) => {
+      document.getElementById('display-room-code').innerText = data.roomCode;
+      document.getElementById('created-code-box').style.display = 'block';
+      const btnCreate = document.getElementById('btn-create-room');
+      btnCreate.innerText = 'START ONLINE GAME';
+      btnCreate.onclick = () => socket.emit('startOnlineGame');
+    });
+
+    socket.on('roomJoinedSuccess', (data) => {
+      document.getElementById('created-code-box').style.display = 'block';
+      document.getElementById('display-room-code').innerText = data.roomCode;
+      document.getElementById('btn-join-room').innerText = 'Waiting for Host...';
+      document.getElementById('btn-join-room').disabled = true;
+    });
+
+    socket.on('lobbyPlayerUpdate', (data) => {
+      document.getElementById('hud-room-display').innerText = `PLAYERS: ${data.players.length}/4`;
+    });
+
+    socket.on('onlineGameStarted', (data) => {
+      SoundManager.init();
+      document.getElementById('hud-room-display').innerText = `ONLINE: ${socket.roomCode || 'ROOM'}`;
+      launchGameBoard(data.players, true, socket.playerColor || 'red');
+    });
+
+    socket.on('receiveGameAction', (action) => {
+      if (action.type === 'DICE_ROLLED') {
+        applyDiceRoll(action.roll);
+      } else if (action.type === 'TOKEN_MOVED') {
+        executeMove(action.color, action.tokenId);
+      }
+    });
+  }
+
+  // 9. EVENT LISTENERS
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
@@ -696,6 +758,21 @@
     });
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
+
+    // Online Room Actions
+    document.getElementById('btn-create-room').addEventListener('click', () => {
+      if (!socket) return alert('Server offline hai!');
+      const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
+      socket.emit('createRoom', { hostName: name });
+    });
+
+    document.getElementById('btn-join-room').addEventListener('click', () => {
+      if (!socket) return alert('Server offline hai!');
+      const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
+      const code = document.getElementById('join-room-code').value.trim().toUpperCase();
+      if (!code) return alert('Kripya 6-character room code bharein!');
+      socket.emit('joinRoom', { playerName: name, roomCode: code });
+    });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
 
@@ -746,6 +823,8 @@
         updateVisualTokensPositions();
       }
     });
+
+    setupRoomSocketListeners();
   }
 
   window.addEventListener('DOMContentLoaded', () => {
