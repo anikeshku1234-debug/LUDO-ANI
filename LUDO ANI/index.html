@@ -15,18 +15,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
-  <!-- Service Worker Registration for PWA -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW Registered!', reg.scope))
-          .catch(err => console.log('SW Registration Failed:', err));
-      });
-    }
-  </script>
+  <!-- Direct Native Socket.io script from your own server -->
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
@@ -60,9 +51,7 @@
         </div>
 
         <div class="section-label">Enter Player Names</div>
-        <div id="player-inputs-container" class="inputs-grid">
-          <!-- Populated by JS dynamically -->
-        </div>
+        <div id="player-inputs-container" class="inputs-grid"></div>
 
         <button class="btn btn-primary btn-large" id="btn-start-passplay">START GAME</button>
       </div>
@@ -115,8 +104,6 @@
 
     <!-- Main Dynamic Board Layout Container -->
     <main class="board-wrapper">
-      
-      <!-- Reference-Exact 15x15 Ludo Board -->
       <div id="ludo-board" class="ludo-board">
         
         <!-- YARDS / HOME BASES -->
@@ -160,7 +147,7 @@
           </div>
         </div>
 
-        <!-- 3x3 Center Triangular Finish Destination -->
+        <!-- Central Finishing Destination -->
         <div class="board-center-triangle">
           <div class="triangle-part tri-green"></div>
           <div class="triangle-part tri-yellow"></div>
@@ -175,7 +162,6 @@
         <!-- Dynamic Movable Tokens Mounted here -->
         <div id="tokens-layer" class="tokens-interactive-layer"></div>
       </div>
-
     </main>
 
     <!-- BOTTOM CONTROL BAR -->
@@ -188,7 +174,6 @@
         </div>
       </div>
 
-      <!-- Animated 3D Shaking Dice Container -->
       <div class="dice-station">
         <button id="btn-roll-dice" class="dice-trigger-btn" aria-label="Roll dice">
           <div id="dice-3d-box" class="dice-cube show-1">
@@ -206,7 +191,7 @@
 
   </div>
 
-  <!-- SETTINGS MODAL -->
+  <!-- MODALS -->
   <div id="settings-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-dialog">
       <h2>Game Settings</h2>
@@ -226,7 +211,6 @@
     </div>
   </div>
 
-  <!-- RESTART CONFIRMATION MODAL -->
   <div id="confirm-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-dialog alert-dialog">
       <h3>Restart Match?</h3>
@@ -238,14 +222,11 @@
     </div>
   </div>
 
-  <!-- VICTORY CELEBRATION MODAL -->
   <div id="victory-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-dialog victory-dialog">
       <div class="confetti-holder">🎉 🏆 👑</div>
       <h2 id="winner-celebrate-title">PLAYER WINS!</h2>
-      <div id="podium-rankings-list" class="podium-list">
-        <!-- Injected dynamically -->
-      </div>
+      <div id="podium-rankings-list" class="podium-list"></div>
       <button class="btn btn-primary btn-large" id="btn-victory-replay">PLAY AGAIN</button>
     </div>
   </div>
