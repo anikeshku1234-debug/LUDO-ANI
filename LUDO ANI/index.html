@@ -3,799 +3,412 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ludo Royale - Multiplayer & AI</title>
-
-  <!-- PWA Meta Tags -->
+  <title>Ludo Multiplayer</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png">
-  <link rel="apple-touch-icon" href="/logo-192.png">
-  <meta name="theme-color" content="#0284c7">
-
+  <link rel="icon" href="/logo-192.png">
   <script src="/socket.io/socket.io.js"></script>
-
   <style>
     :root {
-      --board-red: #c9182b;
-      --board-green: #0a8f3d;
-      --board-yellow: #ffcc00;
-      --board-blue: #0084ff;
-      --safe-star: #64748b;
+      --red: #c9182b;
+      --green: #0a8f3d;
+      --yellow: #ffcc00;
+      --blue: #0084ff;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
-    /* Outer Background matching exact photo geometry */
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: Arial, sans-serif; }
     body {
-      background: #0284c7;
-      background-image: 
-        radial-gradient(#38bdf8 15%, transparent 16%), 
-        radial-gradient(#0369a1 15%, transparent 16%);
-      background-size: 55px 55px;
-      background-position: 0 0, 28px 28px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow-x: hidden;
-      color: #ffffff;
+      background: #0284c7 radial-gradient(#38bdf8 15%, transparent 16%);
+      background-size: 40px 40px;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: white;
     }
-
-    /* Modal / Form Panels */
     .panel {
-      background: rgba(15, 23, 42, 0.96);
-      border: 2px solid #38bdf8;
-      border-radius: 16px;
-      padding: 24px;
-      width: 92%;
-      max-width: 400px;
-      text-align: center;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+      background: #0f172a; border: 2px solid #38bdf8; border-radius: 12px;
+      padding: 20px; width: 90%; max-width: 360px; text-align: center;
     }
-
-    .panel h1 {
-      font-size: 24px;
-      margin-bottom: 12px;
-      color: #38bdf8;
-      letter-spacing: 1px;
-    }
-
     .btn {
-      width: 100%;
-      padding: 13px;
-      margin: 8px 0;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.1s ease, filter 0.2s ease;
-    }
-    .btn:active {
-      transform: scale(0.98);
+      width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 6px;
+      font-size: 16px; font-weight: bold; cursor: pointer;
     }
     .btn-green { background: #16a34a; color: white; }
-    .btn-blue  { background: #2563eb; color: white; }
-    .btn-ai    { background: #eab308; color: #000000; }
-
+    .btn-blue { background: #2563eb; color: white; }
+    .btn-ai { background: #eab308; color: black; }
     input {
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: 2px solid #64748b;
-      background: #0f172a;
-      color: white;
-      font-size: 16px;
-      text-align: center;
-      outline: none;
-    }
-    input:focus {
-      border-color: #38bdf8;
+      width: 100%; padding: 10px; margin: 6px 0; border-radius: 6px;
+      border: 1px solid #475569; background: #1e293b; color: white; text-align: center; font-size: 16px;
     }
 
-    /* Lobby List */
-    .player-list {
-      list-style: none;
-      margin: 15px 0;
-      padding: 0;
-    }
-    .player-list li {
-      background: #1e293b;
-      border: 1px solid #334155;
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin: 6px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: bold;
+    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; }
+    
+    .top-bar { width: 92vw; max-width: 390px; display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    .card-indicator {
+      background: #fed7aa; border: 2px solid #eab308; border-radius: 6px;
+      padding: 4px 8px; color: black; font-weight: bold; font-size: 12px; display: flex; align-items: center; gap: 6px;
     }
 
-    /* Main Game Display Arena */
-    #gameArea {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      padding: 10px 0;
+    /* 15x15 CSS Grid Board */
+    #board-wrap {
+      width: 92vw; max-width: 390px; height: 92vw; max-height: 390px;
+      background: white; border: 3px solid #0f172a; position: relative;
     }
-
-    /* Top Player Indicator (Matching Photo: Player 2 Card) */
-    .top-bar-box {
-      width: 94vw;
-      max-width: 410px;
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 8px;
-    }
-    .player-indicator-card {
-      background: #fed7aa;
-      border: 2px solid #eab308;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      padding: 4px 6px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    }
-    .top-card-name {
-      font-size: 12px;
-      font-weight: bold;
-      color: #1e293b;
-      margin-right: 6px;
-    }
-    .indicator-badge {
-      background: #0284c7;
-      width: 38px;
-      height: 38px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* 15x15 Ludo Board Container */
-    #board-container {
-      width: 94vw;
-      max-width: 410px;
-      height: 94vw;
-      max-height: 410px;
-      position: relative;
-      background: #ffffff;
-      border: 4px solid #0f172a;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-    }
-
     #board {
-      width: 100%;
-      height: 100%;
-      display: grid;
-      grid-template-columns: repeat(15, 1fr);
-      grid-template-rows: repeat(15, 1fr);
+      width: 100%; height: 100%; display: grid;
+      grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
     }
-
     .cell {
-      border: 0.5px solid #cbd5e1;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
+      border: 0.5px solid #cbd5e1; position: relative;
+      display: flex; align-items: center; justify-content: center;
     }
 
-    /* 4 Corner Home Yards */
-    .home-box {
-      position: absolute;
-      border: 3px solid #0f172a;
-      display: grid;
-      place-items: center;
-      z-index: 5;
-    }
-    .hb-green  { top: 0; left: 0; width: 40%; height: 40%; background: var(--board-green); }
-    .hb-yellow { top: 0; right: 0; width: 40%; height: 40%; background: var(--board-yellow); }
-    .hb-red    { bottom: 0; left: 0; width: 40%; height: 40%; background: var(--board-red); }
-    .hb-blue   { bottom: 0; right: 0; width: 40%; height: 40%; background: var(--board-blue); }
+    /* 4 Corner Yards */
+    .yard { position: absolute; border: 2px solid #0f172a; display: grid; place-items: center; z-index: 2; }
+    .y-green  { top: 0; left: 0; width: 40%; height: 40%; background: var(--green); }
+    .y-yellow { top: 0; right: 0; width: 40%; height: 40%; background: var(--yellow); }
+    .y-red    { bottom: 0; left: 0; width: 40%; height: 40%; background: var(--red); }
+    .y-blue   { bottom: 0; right: 0; width: 40%; height: 40%; background: var(--blue); }
 
-    .home-inner-white {
-      width: 72%;
-      height: 72%;
-      background: #ffffff;
-      border-radius: 12px;
-      border: 2px solid rgba(0, 0, 0, 0.15);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      place-items: center;
+    .yard-white {
+      width: 70%; height: 70%; background: white; border-radius: 8px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; place-items: center;
     }
-
-    .base-slot {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
+    .slot {
+      width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; position: relative;
     }
-    .slot-green  { background: var(--board-green); }
-    .slot-yellow { background: var(--board-yellow); border: 2px solid #ca8a04; }
-    .slot-red    { background: var(--board-red); border: 2px solid #991b1b; }
-    .slot-blue   { background: var(--board-blue); }
+    .s-green { background: var(--green); }
+    .s-yellow { background: var(--yellow); }
+    .s-red { background: var(--red); }
+    .s-blue { background: var(--blue); }
 
-    .box-label {
-      position: absolute;
-      font-size: 11px;
-      font-weight: bold;
-      letter-spacing: 0.5px;
-    }
-    .label-red { bottom: 4px; left: 50%; transform: translateX(-50%); color: #ffffff; }
-    .label-yellow { top: 4px; left: 50%; transform: translateX(-50%) rotate(180deg); color: #000000; }
-
-    /* Center Finish Triangles */
-    .center-finish {
-      position: absolute;
-      top: 40%;
-      left: 40%;
-      width: 20%;
-      height: 20%;
-      background: conic-gradient(
-        var(--board-yellow) 0deg 90deg,
-        var(--board-blue) 90deg 180deg,
-        var(--board-red) 180deg 270deg,
-        var(--board-green) 270deg 360deg
-      );
-      border: 2px solid #0f172a;
-      z-index: 4;
+    .center-sq {
+      position: absolute; top: 40%; left: 40%; width: 20%; height: 20%;
+      background: conic-gradient(var(--yellow) 0deg 90deg, var(--blue) 90deg 180deg, var(--red) 180deg 270deg, var(--green) 270deg 360deg);
+      border: 2px solid #0f172a; z-index: 1;
     }
 
-    /* Cell Path Colors */
-    .bg-red    { background: var(--board-red) !important; color: white; }
-    .bg-green  { background: var(--board-green) !important; color: white; }
-    .bg-yellow { background: var(--board-yellow) !important; color: black; }
-    .bg-blue   { background: var(--board-blue) !important; color: white; }
+    .bg-red { background: var(--red) !important; color: white; }
+    .bg-green { background: var(--green) !important; color: white; }
+    .bg-yellow { background: var(--yellow) !important; color: black; }
+    .bg-blue { background: var(--blue) !important; color: white; }
 
-    .star-symbol {
-      font-size: 18px;
-      color: var(--safe-star);
-      font-weight: normal;
+    /* Map Pin Goti */
+    .goti {
+      width: 22px; height: 22px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); border: 2px solid white; cursor: pointer;
+      position: absolute; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
     }
+    .g-red { background: #dc2626; }
+    .g-green { background: #16a34a; }
+    .g-yellow { background: #facc15; }
+    .g-blue { background: #2563eb; }
 
-    /* Teardrop Pin Goti Token */
-    .pin {
-      width: 22px;
-      height: 22px;
-      border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg);
-      cursor: pointer;
-      border: 2.5px solid #ffffff;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.6);
-      position: absolute;
-      z-index: 25;
-      transition: transform 0.15s ease, filter 0.15s ease;
-    }
-    .pin:active {
-      transform: rotate(-45deg) scale(1.15);
-    }
-    .pin-red    { background: #dc2626; }
-    .pin-green  { background: #16a34a; }
-    .pin-yellow { background: #facc15; }
-    .pin-blue   { background: #2563eb; }
-
-    /* Bottom Control Bar (Matching Photo) */
+    /* Bottom Control */
     .bottom-bar {
-      width: 94vw;
-      max-width: 410px;
-      margin-top: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 12px;
+      width: 92vw; max-width: 390px; margin-top: 10px;
+      display: flex; align-items: center; gap: 10px;
     }
-
-    .dice-card {
-      background: #ffedd5;
-      border: 2px solid #fdba74;
-      border-radius: 10px;
-      padding: 6px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    .dice-wrap {
+      background: #ffedd5; border: 2px solid #fdba74; border-radius: 8px;
+      padding: 4px; display: flex; align-items: center; gap: 6px;
     }
-
-    .bottom-badge {
-      background: #0284c7;
-      width: 44px;
-      height: 44px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
+    .badge {
+      background: #0284c7; width: 42px; height: 42px; border-radius: 6px;
+      display: grid; place-items: center; position: relative;
     }
-
-    /* Bold Integer Dice */
-    .dice-cube {
-      width: 48px;
-      height: 48px;
-      background: #ffffff;
-      border-radius: 8px;
-      border: 2px solid #94a3b8;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 26px;
-      font-weight: 900;
-      color: #0f172a;
-      cursor: pointer;
-      box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15), 0 3px 6px rgba(0, 0, 0, 0.25);
-      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    .dice-box {
+      width: 44px; height: 44px; background: white; border: 2px solid #94a3b8;
+      border-radius: 6px; color: black; font-size: 24px; font-weight: bold;
+      display: grid; place-items: center; cursor: pointer;
     }
-    .dice-cube:active {
-      transform: translateY(2px);
-      box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.25);
-    }
-
-    .arrow-pointer {
-      width: 0;
-      height: 0;
-      border-top: 10px solid transparent;
-      border-bottom: 10px solid transparent;
-      border-left: 14px solid #f97316;
-      animation: bounceArrow 0.8s infinite alternate;
-    }
-    @keyframes bounceArrow {
-      from { transform: translateX(0); }
-      to   { transform: translateX(6px); }
-    }
-
-    .status-text {
-      font-size: 14px;
-      font-weight: bold;
-      color: #ffffff;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    .arrow {
+      width: 0; height: 0;
+      border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+      border-left: 12px solid #f97316;
     }
   </style>
 </head>
 <body>
 
-  <!-- 1. MAIN MENU SCREEN -->
+  <!-- Menu View -->
   <div id="menuView" class="panel">
-    <h1>🎲 LUDO ROYALE</h1>
-    <input id="nameInput" placeholder="Apna Naam Likhein" maxlength="15" />
+    <h2 style="color:#38bdf8; margin-bottom:12px;">🎲 LUDO ROYALE</h2>
+    <input id="nameInp" placeholder="Apna Naam" />
     <button class="btn btn-ai" onclick="startAI()">⚡ 1v1 Play vs Fast AI</button>
     <button class="btn btn-green" onclick="createRoom()">🏠 Create Online Room</button>
-    <div style="margin: 12px 0; font-size: 12px; color: #94a3b8;">— YA 4-DIGIT CODE SE JOIN KAREIN —</div>
-    <input id="codeInput" placeholder="Room Code" maxlength="4" />
+    <div style="font-size:12px; margin:8px 0; color:#94a3b8;">— YA CODE SE JOIN KAREIN —</div>
+    <input id="codeInp" placeholder="4-Digit Code" maxlength="4" />
     <button class="btn btn-blue" onclick="joinRoom()">🔑 Join Room</button>
   </div>
 
-  <!-- 2. ROOM LOBBY SCREEN -->
-  <div id="lobbyView" class="panel" style="display: none;">
-    <h2 style="color: #facc15;">🏠 Room Lobby</h2>
-    <div style="font-size: 13px; color: #94a3b8; margin-top: 8px;">Dosto ko yeh 4-digit code share karein:</div>
-    <div id="lobbyCodeDisplay" style="font-size: 32px; font-weight: 900; letter-spacing: 4px; color: #38bdf8; margin: 10px 0;">----</div>
-    <ul id="playerList" class="player-list"></ul>
-    <button id="startBtn" class="btn btn-green" style="display: none;" onclick="startGame()">▶️ Game Shuru Karein</button>
-    <div id="waitMsg" style="font-size: 13px; color: #fbbf24; margin-top: 8px;">Host ke game start karne ka intezar karein (Min 2 Players)...</div>
+  <!-- Lobby View -->
+  <div id="lobbyView" class="panel" style="display:none;">
+    <h3>🏠 Room Lobby</h3>
+    <div style="font-size:28px; font-weight:bold; color:#38bdf8; margin:10px 0;" id="lobbyCode">0000</div>
+    <div id="playerList" style="margin:10px 0; font-size:14px;"></div>
+    <button id="startBtn" class="btn btn-green" style="display:none;" onclick="startRoom()">▶️ Start Game</button>
+    <div id="waitMsg" style="color:#facc15; font-size:12px;">Host ke start karne ka wait karein...</div>
   </div>
 
-  <!-- 3. IN-GAME BOARD CANVAS -->
+  <!-- Game Area -->
   <div id="gameArea">
-    <!-- Top Player Card (Photo Alignment: Player 2 / Yellow) -->
-    <div class="top-bar-box">
-      <div class="player-indicator-card">
-        <div id="topPlayerName" class="top-card-name">Player 2</div>
-        <div class="indicator-badge">
-          <div class="pin pin-yellow" style="position: static; transform: rotate(-45deg);"></div>
-        </div>
+    <div class="top-bar">
+      <div class="card-indicator">
+        <span id="oppName">Player 2</span>
+        <div class="goti g-yellow" style="position:static; transform:rotate(-45deg); width:16px; height:16px;"></div>
       </div>
     </div>
 
-    <!-- 15x15 Ludo Board Grid -->
-    <div id="board-container">
+    <div id="board-wrap">
       <div id="board"></div>
-
-      <!-- Top-Left: Green Home Yard -->
-      <div class="home-box hb-green">
-        <div class="home-inner-white">
-          <div class="base-slot slot-green" id="slot-green-0"></div>
-          <div class="base-slot slot-green" id="slot-green-1"></div>
-          <div class="base-slot slot-green" id="slot-green-2"></div>
-          <div class="base-slot slot-green" id="slot-green-3"></div>
-        </div>
-      </div>
-
-      <!-- Top-Right: Yellow Home Yard (Player 2) -->
-      <div class="home-box hb-yellow">
-        <div class="box-label label-yellow">Player 2</div>
-        <div class="home-inner-white">
-          <div class="base-slot slot-yellow" id="slot-yellow-0"></div>
-          <div class="base-slot slot-yellow" id="slot-yellow-1"></div>
-          <div class="base-slot slot-yellow" id="slot-yellow-2"></div>
-          <div class="base-slot slot-yellow" id="slot-yellow-3"></div>
-        </div>
-      </div>
-
-      <!-- Bottom-Left: Red Home Yard (Player 1) -->
-      <div class="home-box hb-red">
-        <div class="box-label label-red">Player 1</div>
-        <div class="home-inner-white">
-          <div class="base-slot slot-red" id="slot-red-0"></div>
-          <div class="base-slot slot-red" id="slot-red-1"></div>
-          <div class="base-slot slot-red" id="slot-red-2"></div>
-          <div class="base-slot slot-red" id="slot-red-3"></div>
-        </div>
-      </div>
-
-      <!-- Bottom-Right: Blue Home Yard -->
-      <div class="home-box hb-blue">
-        <div class="home-inner-white">
-          <div class="base-slot slot-blue" id="slot-blue-0"></div>
-          <div class="base-slot slot-blue" id="slot-blue-1"></div>
-          <div class="base-slot slot-blue" id="slot-blue-2"></div>
-          <div class="base-slot slot-blue" id="slot-blue-3"></div>
-        </div>
-      </div>
-
-      <!-- Center Finish -->
-      <div class="center-finish"></div>
+      
+      <div class="yard y-green"><div class="yard-white"><div class="slot s-green" id="slot-green-0"></div><div class="slot s-green" id="slot-green-1"></div><div class="slot s-green" id="slot-green-2"></div><div class="slot s-green" id="slot-green-3"></div></div></div>
+      <div class="yard y-yellow"><div class="yard-white"><div class="slot s-yellow" id="slot-yellow-0"></div><div class="slot s-yellow" id="slot-yellow-1"></div><div class="slot s-yellow" id="slot-yellow-2"></div><div class="slot s-yellow" id="slot-yellow-3"></div></div></div>
+      <div class="yard y-red"><div class="yard-white"><div class="slot s-red" id="slot-red-0"></div><div class="slot s-red" id="slot-red-1"></div><div class="slot s-red" id="slot-red-2"></div><div class="slot s-red" id="slot-red-3"></div></div></div>
+      <div class="yard y-blue"><div class="yard-white"><div class="slot s-blue" id="slot-blue-0"></div><div class="slot s-blue" id="slot-blue-1"></div><div class="slot s-blue" id="slot-blue-2"></div><div class="slot s-blue" id="slot-blue-3"></div></div></div>
+      
+      <div class="center-sq"></div>
     </div>
 
-    <!-- Bottom Controls: Player 1 (Red) matching screenshot -->
     <div class="bottom-bar">
-      <div class="dice-card">
-        <div class="bottom-badge">
-          <div id="myPinIcon" class="pin pin-red" style="position: static; transform: rotate(-45deg);"></div>
-        </div>
-        <!-- Bold Integer Dice Cube -->
-        <div id="diceCube" class="dice-cube" onclick="rollDice()">-</div>
+      <div class="dice-wrap">
+        <div class="badge"><div class="goti g-red" style="position:static; transform:rotate(-45deg);"></div></div>
+        <div id="diceCube" class="dice-box" onclick="roll()">-</div>
       </div>
-      <div id="turnArrow" class="arrow-pointer"></div>
-      <div id="turnStatus" class="status-text">Player 1 Turn</div>
+      <div id="turnArrow" class="arrow"></div>
+      <div id="turnMsg" style="font-size:14px; font-weight:bold;">Aapki baari</div>
     </div>
   </div>
 
   <script>
-    // --- SERVICE WORKER REGISTRATION (PWA) ---
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => console.log('SW error:', err));
-    }
-
     const socket = io();
     let myColor = 'red';
     let currentTokens = {};
     let isMyTurn = false;
-    let roomPlayers = [];
 
-    // --- SYNTHESIZER AUDIO ENGINE ---
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    let audioCtx = null;
-
-    function playAudioFx(type) {
+    // Simple Sound Generator (Zero blocking)
+    function playAudio(type) {
       try {
-        if (!audioCtx) audioCtx = new AudioContextClass();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const now = audioCtx.currentTime;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        const t = ctx.currentTime;
 
-        if (type === 'dice') {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'square';
-          osc.frequency.setValueAtTime(240, now);
-          gain.gain.setValueAtTime(0.2, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-          osc.connect(gain); gain.connect(audioCtx.destination);
-          osc.start(now); osc.stop(now + 0.08);
-        } else if (type === 'puk') {
-          // Step movement knock
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(340, now);
-          osc.frequency.exponentialRampToValueAtTime(70, now + 0.07);
-          gain.gain.setValueAtTime(0.3, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
-          osc.connect(gain); gain.connect(audioCtx.destination);
-          osc.start(now); osc.stop(now + 0.07);
+        if (type === 'puk') {
+          osc.frequency.setValueAtTime(300, t);
+          gain.gain.setValueAtTime(0.2, t);
+          osc.start(t); osc.stop(t + 0.06);
         } else if (type === 'yes') {
-          // Token release on 6
-          [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
-            gain.gain.setValueAtTime(0.15, now + idx * 0.06);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.06 + 0.15);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(now + idx * 0.06); osc.stop(now + idx * 0.06 + 0.15);
-          });
+          osc.frequency.setValueAtTime(600, t);
+          gain.gain.setValueAtTime(0.2, t);
+          osc.start(t); osc.stop(t + 0.15);
         } else if (type === 'puipui') {
-          // Capture / Kill whistle
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(800, now);
-          osc.frequency.exponentialRampToValueAtTime(140, now + 0.35);
-          gain.gain.setValueAtTime(0.25, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-          osc.connect(gain); gain.connect(audioCtx.destination);
-          osc.start(now); osc.stop(now + 0.35);
+          osc.frequency.setValueAtTime(500, t);
+          osc.frequency.exponentialRampToValueAtTime(150, t + 0.3);
+          gain.gain.setValueAtTime(0.2, t);
+          osc.start(t); osc.stop(t + 0.3);
         } else if (type === 'twinkle') {
-          // Home / Goal chime
-          [1046.50, 1318.51, 1567.98, 2093.00].forEach((freq, idx) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.frequency.setValueAtTime(freq, now + idx * 0.08);
-            gain.gain.setValueAtTime(0.2, now + idx * 0.08);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.3);
-          });
+          osc.frequency.setValueAtTime(1000, t);
+          gain.gain.setValueAtTime(0.2, t);
+          osc.start(t); osc.stop(t + 0.25);
         }
       } catch (e) {}
     }
 
-    // --- 15x15 LUDO BOARD GENERATION ---
-    function buildBoard() {
+    // Build 15x15 Grid Board
+    function initBoard() {
       const b = document.getElementById('board');
       b.innerHTML = '';
-
       for (let r = 0; r < 15; r++) {
         for (let c = 0; c < 15; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           cell.id = `c_${r}_${c}`;
 
-          // Red Path (Bottom arm)
           if (c === 7 && r >= 9 && r <= 13) cell.classList.add('bg-red');
-          if (r === 13 && c === 6) cell.classList.add('bg-red'); // Red starting block
+          if (r === 13 && c === 6) cell.classList.add('bg-red');
 
-          // Green Path (Left arm)
           if (r === 7 && c >= 1 && c <= 5) cell.classList.add('bg-green');
-          if (r === 6 && c === 1) cell.classList.add('bg-green'); // Green starting block
+          if (r === 6 && c === 1) cell.classList.add('bg-green');
 
-          // Yellow Path (Top arm)
           if (c === 7 && r >= 1 && r <= 5) cell.classList.add('bg-yellow');
-          if (r === 1 && c === 8) cell.classList.add('bg-yellow'); // Yellow starting block
+          if (r === 1 && c === 8) cell.classList.add('bg-yellow');
 
-          // Blue Path (Right arm)
           if (r === 7 && c >= 9 && c <= 13) cell.classList.add('bg-blue');
-          if (r === 8 && c === 13) cell.classList.add('bg-blue'); // Blue starting block
+          if (r === 8 && c === 13) cell.classList.add('bg-blue');
 
-          // 4 Safe Star Coordinates matching photo
           if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
-            cell.innerHTML = '<span class="star-symbol">☆</span>';
+            cell.innerText = '☆';
+            cell.style.color = '#64748b';
           }
 
-          // Entry Arrows
-          if (r === 14 && c === 7) cell.innerHTML = '↑';
-          if (r === 7 && c === 0) cell.innerHTML = '→';
-          if (r === 0 && c === 7) cell.innerHTML = '↓';
-          if (r === 7 && c === 14) cell.innerHTML = '←';
+          if (r === 14 && c === 7) cell.innerText = '↑';
+          if (r === 7 && c === 0) cell.innerText = '→';
+          if (r === 0 && c === 7) cell.innerText = '↓';
+          if (r === 7 && c === 14) cell.innerText = '←';
 
           b.appendChild(cell);
         }
       }
     }
-    buildBoard();
+    initBoard();
 
-    // 52 Global Perimeter Coordinates (Starts at Red entrance: [13, 6])
-    const trackCoords = [
+    const track = [
       [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
       [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
       [1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],[8,14],
       [8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],[14,7],[14,6]
     ];
 
-    function getCellIdForStep(color, step) {
+    function getTargetCell(col, step) {
       if (step === -1) return null;
-      if (step === 56) return 'c_7_7'; // Center Finish
-
-      const offsets = { red: 0, green: 13, yellow: 26, blue: 39 };
+      if (step === 56) return 'c_7_7';
+      const offset = { red: 0, green: 13, yellow: 26, blue: 39 }[col];
       if (step < 51) {
-        const idx = (offsets[color] + step) % 52;
-        const [r, c] = trackCoords[idx];
+        const [r, c] = track[(offset + step) % 52];
         return `c_${r}_${c}`;
       } else {
-        // Home Column steps (51 to 55)
-        const homeIdx = step - 51;
-        if (color === 'red') return `c_${13 - homeIdx}_7`;
-        if (color === 'green') return `c_7_${homeIdx + 1}`;
-        if (color === 'yellow') return `c_${homeIdx + 1}_7`;
-        if (color === 'blue') return `c_7_${13 - homeIdx}`;
+        const h = step - 51;
+        if (col === 'red') return `c_${13 - h}_7`;
+        if (col === 'green') return `c_7_${h + 1}`;
+        if (col === 'yellow') return `c_${h + 1}_7`;
+        if (col === 'blue') return `c_7_${13 - h}`;
       }
     }
 
-    // --- GAME ACTIONS & CLIENT TRIGGERS ---
     function startAI() {
-      const name = document.getElementById('nameInput').value.trim() || 'Player 1';
-      socket.emit('createBotGame', { playerName: name });
+      const name = document.getElementById('nameInp').value.trim() || 'Player 1';
+      socket.emit('startBotMatch', { playerName: name });
     }
 
     function createRoom() {
-      const name = document.getElementById('nameInput').value.trim();
-      if (!name) return alert('Kripya apna naam likhein!');
+      const name = document.getElementById('nameInp').value.trim();
+      if (!name) return alert('Naam likhein!');
       socket.emit('createRoom', { playerName: name });
     }
 
     function joinRoom() {
-      const name = document.getElementById('nameInput').value.trim();
-      const code = document.getElementById('codeInput').value.trim();
-      if (!name || !code) return alert('Naam aur 4-digit Room Code dono bharein!');
+      const name = document.getElementById('nameInp').value.trim();
+      const code = document.getElementById('codeInp').value.trim();
+      if (!name || !code) return alert('Naam aur code bharein!');
       socket.emit('joinRoom', { playerName: name, roomCode: code });
     }
 
-    function startGame() {
-      socket.emit('startGame');
+    function startRoom() {
+      socket.emit('startRoomGame');
     }
 
-    function rollDice() {
+    function roll() {
       if (!isMyTurn) return;
-      playAudioFx('dice');
+      playAudio('puk');
       socket.emit('rollDice');
     }
 
-    // --- SOCKET.IO EVENT HANDLERS ---
     socket.on('gameError', (msg) => alert(msg));
 
-    socket.on('roomCreated', (data) => showLobby(data.roomCode, data.players, true));
-    socket.on('roomJoinedSuccess', (data) => showLobby(data.roomCode, data.players, false));
-    socket.on('lobbyUpdate', (data) => updateLobby(data.players, data.hostId));
-
-    function showLobby(code, players, isHost) {
+    socket.on('roomCreated', (d) => {
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('lobbyView').style.display = 'block';
-      document.getElementById('lobbyCodeDisplay').innerText = code;
-      updateLobby(players, isHost ? socket.id : null);
-    }
+      document.getElementById('lobbyCode').innerText = d.roomCode;
+      document.getElementById('playerList').innerText = 'Players: ' + d.players.map(p => p.name).join(', ');
+    });
 
-    function updateLobby(players, hostId) {
-      roomPlayers = players;
-      const list = document.getElementById('playerList');
-      list.innerHTML = '';
-      players.forEach(p => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span>${p.name}</span><span style="color:var(--board-${p.color})">${p.color.toUpperCase()}</span>`;
-        list.appendChild(li);
-      });
+    socket.on('roomJoinedSuccess', (d) => {
+      myColor = d.myColor;
+      document.getElementById('menuView').style.display = 'none';
+      document.getElementById('lobbyView').style.display = 'block';
+      document.getElementById('lobbyCode').innerText = d.roomCode;
+    });
 
-      const isHost = (hostId === socket.id);
-      document.getElementById('startBtn').style.display = (isHost && players.length >= 2) ? 'block' : 'none';
-      document.getElementById('waitMsg').style.display = isHost ? 'none' : 'block';
-    }
+    socket.on('lobbyUpdate', (d) => {
+      document.getElementById('playerList').innerText = 'Players: ' + d.players.map(p => p.name + ` (${p.color})`).join(', ');
+      if (d.hostId === socket.id && d.players.length >= 2) {
+        document.getElementById('startBtn').style.display = 'block';
+        document.getElementById('waitMsg').style.display = 'none';
+      }
+    });
 
-    socket.on('gameStarted', (data) => {
+    socket.on('gameStarted', (d) => {
       document.getElementById('menuView').style.display = 'none';
       document.getElementById('lobbyView').style.display = 'none';
       document.getElementById('gameArea').style.display = 'flex';
+      myColor = d.myColor || myColor;
+      currentTokens = d.tokens;
 
-      myColor = data.myColor || 'red';
-      roomPlayers = data.players || [];
-      currentTokens = data.tokens;
+      const opp = (d.players || []).find(p => p.color !== myColor);
+      if (opp) document.getElementById('oppName').innerText = opp.name;
 
-      // Update badge colors to match player role
-      const myPinIcon = document.getElementById('myPinIcon');
-      myPinIcon.className = `pin pin-${myColor}`;
-
-      // Update opponent name in top card
-      const opp = roomPlayers.find(p => p.color !== myColor);
-      if (opp) {
-        document.getElementById('topPlayerName').innerText = opp.name;
-      }
-
-      renderAllTokens();
-      updateTurnIndicator(data.activeColor);
+      render();
+      updateTurn(d.activeColor);
     });
 
-    // Pure Integer Number Dice Display
-    socket.on('diceRolled', (data) => {
-      document.getElementById('diceCube').innerText = data.roll;
-      if (data.message) {
-        document.getElementById('turnStatus').innerText = data.message;
-      }
+    socket.on('diceRolled', (d) => {
+      document.getElementById('diceCube').innerText = d.roll;
+      if (d.message) document.getElementById('turnMsg').innerText = d.message;
     });
 
-    socket.on('turnChanged', (data) => {
-      currentTokens = data.tokens;
-      renderAllTokens();
-      updateTurnIndicator(data.activeColor);
+    socket.on('turnChanged', (d) => {
+      currentTokens = d.tokens;
+      render();
+      updateTurn(d.activeColor);
     });
 
-    socket.on('tokenMoved', (data) => {
-      if (data.eventType === 'out') playAudioFx('yes');
-      else if (data.eventType === 'kill') playAudioFx('puipui');
-      else if (data.eventType === 'home') playAudioFx('twinkle');
-      else playAudioFx('puk');
+    socket.on('tokenMoved', (d) => {
+      if (d.eventType === 'out') playAudio('yes');
+      else if (d.eventType === 'kill') playAudio('puipui');
+      else if (d.eventType === 'home') playAudio('twinkle');
+      else playAudio('puk');
 
-      currentTokens = data.tokens;
-      renderAllTokens();
-      updateTurnIndicator(data.activeColor);
+      currentTokens = d.tokens;
+      render();
+      updateTurn(d.activeColor);
     });
 
-    function updateTurnIndicator(activeColor) {
-      isMyTurn = (activeColor === myColor);
-      const status = document.getElementById('turnStatus');
-      status.innerText = isMyTurn ? 'Aapki Baari! Pasa Phenkein' : `${activeColor.toUpperCase()} ki baari hai...`;
-
+    function updateTurn(color) {
+      isMyTurn = (color === myColor);
+      document.getElementById('turnMsg').innerText = isMyTurn ? 'Aapki Baari!' : `${color.toUpperCase()} ki baari`;
       document.getElementById('turnArrow').style.display = isMyTurn ? 'block' : 'none';
       document.getElementById('diceCube').style.pointerEvents = isMyTurn ? 'auto' : 'none';
       document.getElementById('diceCube').style.opacity = isMyTurn ? '1' : '0.6';
     }
 
-    // Direct Token Renderer
-    function renderAllTokens() {
-      // Clear tokens on track
-      document.querySelectorAll('.pin-on-board').forEach(p => p.remove());
+    function render() {
+      document.querySelectorAll('.g-board').forEach(el => el.remove());
 
       ['red', 'green', 'yellow', 'blue'].forEach(col => {
         if (!currentTokens[col]) return;
-
         currentTokens[col].forEach((tok, idx) => {
           if (tok.step === -1) {
-            // Inside Yard Base
             const slot = document.getElementById(`slot-${col}-${idx}`);
             if (slot) {
               slot.innerHTML = '';
-              const pin = document.createElement('div');
-              pin.className = `pin pin-${col}`;
-              pin.onclick = (e) => {
-                e.stopPropagation();
-                if (isMyTurn && col === myColor) {
-                  socket.emit('moveToken', { tokenIndex: idx });
-                }
-              };
-              slot.appendChild(pin);
+              const g = document.createElement('div');
+              g.className = `goti g-${col}`;
+              g.onclick = () => { if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx }); };
+              slot.appendChild(g);
             }
           } else {
-            // On Board Grid
-            const cellId = getCellIdForStep(col, tok.step);
-            const targetCell = document.getElementById(cellId);
-            if (targetCell) {
-              const pin = document.createElement('div');
-              pin.className = `pin pin-${col} pin-on-board`;
-              pin.onclick = (e) => {
-                e.stopPropagation();
-                if (isMyTurn && col === myColor) {
-                  socket.emit('moveToken', { tokenIndex: idx });
-                }
-              };
-              targetCell.appendChild(pin);
+            const cellId = getTargetCell(col, tok.step);
+            const target = document.getElementById(cellId);
+            if (target) {
+              const g = document.createElement('div');
+              g.className = `goti g-${col} g-board`;
+              g.onclick = () => { if (isMyTurn && col === myColor) socket.emit('moveToken', { tokenIndex: idx }); };
+              target.appendChild(g);
             }
           }
         });
       });
     }
 
-    // Rank & GameOver Modal Handlers
-    socket.on('playerRanked', ({ color, name, rank }) => {
-      const ranks = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
-      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home karke ${ranks[rank - 1] || rank} rank haasil ki!`);
+    socket.on('playerRanked', (d) => {
+      alert(`${d.name} (${d.color}) ne finish kiya! Rank: ${d.rank}`);
     });
 
-    socket.on('gameOver', ({ winners, loser }) => {
-      let html = `<h2>🎮 Khel Khatam!</h2><div style="font-size: 16px; margin: 15px 0;">`;
-      const ranks = ['1st Winner 🥇', '2nd Winner 🥈', '3rd Winner 🥉'];
-      winners.forEach((p, idx) => {
-        html += `<p style="color: #22c55e; font-weight: bold; margin: 4px 0;">${ranks[idx]}: ${p.name} (${p.color.toUpperCase()})</p>`;
-      });
-      if (loser) {
-        html += `<p style="color: #ef4444; font-weight: bold; margin-top: 15px; border-top: 1px dashed #64748b; padding-top: 10px;">❌ Looser: ${loser.name} (${loser.color.toUpperCase()})</p>`;
-      }
-      html += `</div><button onclick="location.reload()" style="padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">Play Again</button>`;
-
-      const modal = document.createElement('div');
-      modal.style = "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1e293b; color: white; padding: 25px; border-radius: 15px; box-shadow: 0 0 30px rgba(0,0,0,0.9); text-align: center; z-index: 9999; min-width: 280px; border: 2px solid #eab308;";
-      modal.innerHTML = html;
-      document.body.appendChild(modal);
+    socket.on('gameOver', (d) => {
+      let html = `<div class="panel"><h2>Khel Khatam!</h2>`;
+      d.winners.forEach((w, i) => html += `<p style="color:#22c55e">${i+1} Winner: ${w.name} (${w.color})</p>`);
+      if (d.loser) html += `<p style="color:#ef4444; margin-top:10px;">❌ Looser: ${d.loser.name}</p>`;
+      html += `<button class="btn btn-blue" onclick="location.reload()">Play Again</button></div>`;
+      document.body.innerHTML = html;
     });
   </script>
 </body>
