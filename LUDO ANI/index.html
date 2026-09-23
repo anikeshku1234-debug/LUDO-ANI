@@ -4,9 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ludo Royale - Advanced Master Edition</title>
+
+  <!-- PWA & Mobile App Icons -->
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png">
+  <link rel="apple-touch-icon" href="/logo-192.png">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <link rel="stylesheet" href="style.css">
-  <!-- High-Availability Global Socket.io CDN -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <!-- Service Worker Registration for PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW Registered!', reg.scope))
+          .catch(err => console.log('SW Registration Failed:', err));
+      });
+    }
+  </script>
 </head>
 <body>
 
@@ -99,7 +119,7 @@
       <!-- Reference-Exact 15x15 Ludo Board -->
       <div id="ludo-board" class="ludo-board">
         
-        <!-- YARDS / HOME BASES (The 4 Colored Quarters) -->
+        <!-- YARDS / HOME BASES -->
         <div class="yard yard-green" id="yard-green">
           <div class="yard-label" id="label-green">GREEN</div>
           <div class="yard-inner-card">
@@ -149,7 +169,7 @@
           <div class="center-trophy">🏆</div>
         </div>
 
-        <!-- Generated Grid Cells will be mounted here by JS -->
+        <!-- Generated Grid Cells -->
         <div id="cells-layer" class="cells-grid-layer"></div>
 
         <!-- Dynamic Movable Tokens Mounted here -->
