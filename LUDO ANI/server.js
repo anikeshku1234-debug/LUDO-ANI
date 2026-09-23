@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,15 +26,40 @@ app.get('/sw.js', (req, res) => {
 });
 
 app.get('/logo-192.png', (req, res) => {
-  res.sendFile(path.join(__dirname, 'logo-192.png'));
+  const localPath = path.join(__dirname, 'logo-192.png');
+  const rootPath = path.join(__dirname, '..', 'logo-192.png');
+  const target = fs.existsSync(localPath) ? localPath : rootPath;
+  res.sendFile(target);
 });
 
 app.get('/logo-512.png', (req, res) => {
-  res.sendFile(path.join(__dirname, 'logo-512.png'));
+  const localPath = path.join(__dirname, 'logo-512.png');
+  const rootPath = path.join(__dirname, '..', 'logo-512.png');
+  const target = fs.existsSync(localPath) ? localPath : rootPath;
+  res.sendFile(target);
 });
 
 const rooms = {};
 const COLORS = ['red', 'green', 'yellow', 'blue'];
+
+// Unbiased Crypto Fair Roll (1 to 6)
+function getFairRoll() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+// Next active player find karne ka helper (Finished players ko skip karega)
+function getNextTurnIndex(room) {
+  const total = room.players.length;
+  let nextIdx = (room.turnIndex + 1) % total;
+  for (let i = 0; i < total; i++) {
+    const candidate = room.players[nextIdx];
+    if (!room.winners.includes(candidate.color)) {
+      return nextIdx;
+    }
+    nextIdx = (nextIdx + 1) % total;
+  }
+  return -1;
+}
 
 io.on('connection', (socket) => {
   // 1. Create Room
@@ -47,6 +73,7 @@ io.on('connection', (socket) => {
       players: [{ id: socket.id, name: playerName.trim(), color: COLORS[0] }],
       turnIndex: 0,
       currentRoll: 0,
+      winners: [], // Finished players order [1st, 2nd, 3rd]
       tokens: {
         red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
         green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
@@ -118,6 +145,7 @@ io.on('connection', (socket) => {
     room.gameStarted = true;
     room.turnIndex = 0;
     room.currentRoll = 0;
+    room.winners = [];
 
     io.to(socket.roomCode).emit('gameStarted', {
       players: room.players,
@@ -126,7 +154,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 4. Roll Dice
+  // 4. Roll Dice (Fair Roll)
   socket.on('rollDice', () => {
     const room = rooms[socket.roomCode];
     if (!room || !room.gameStarted || room.currentRoll !== 0) return;
@@ -134,7 +162,17 @@ io.on('connection', (socket) => {
     const activePlayer = room.players[room.turnIndex];
     if (!activePlayer || activePlayer.id !== socket.id) return;
 
-    const roll = Math.floor(Math.random() * 6) + 1;
+    // Finished player roll nahi kar sakta
+    if (room.winners.includes(activePlayer.color)) {
+      room.turnIndex = getNextTurnIndex(room);
+      io.to(socket.roomCode).emit('turnChanged', {
+        activeColor: room.players[room.turnIndex].color,
+        tokens: room.tokens
+      });
+      return;
+    }
+
+    const roll = getFairRoll();
     room.currentRoll = roll;
 
     const myTokens = room.tokens[activePlayer.color];
@@ -153,7 +191,7 @@ io.on('connection', (socket) => {
     if (!canMove) {
       setTimeout(() => {
         room.currentRoll = 0;
-        room.turnIndex = (room.turnIndex + 1) % room.players.length;
+        room.turnIndex = getNextTurnIndex(room);
         io.to(socket.roomCode).emit('turnChanged', {
           activeColor: room.players[room.turnIndex].color,
           tokens: room.tokens
@@ -162,7 +200,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Move Token with Step Coordinates
+  // 5. Move Token
   socket.on('moveToken', ({ tokenIndex }) => {
     const room = rooms[socket.roomCode];
     if (!room || room.currentRoll === 0) return;
@@ -220,8 +258,33 @@ io.on('connection', (socket) => {
 
     if (valid) {
       room.currentRoll = 0;
-      if (!bonus) {
-        room.turnIndex = (room.turnIndex + 1) % room.players.length;
+
+      // Check karein kya player ki 4 goti Home ho chuki hain (step === 56)
+      const allFourHome = room.tokens[color].every(tok => tok.step === 56);
+      if (allFourHome && !room.winners.includes(color)) {
+        room.winners.push(color);
+        bonus = false; // Jeetne ke baad bonus roll nahi milta
+        io.to(socket.roomCode).emit('playerRanked', {
+          color: color,
+          name: activePlayer.name,
+          rank: room.winners.length
+        });
+      }
+
+      // Check karein kya game khatam ho gaya (Sirf 1 active player bacha hai)
+      const remainingPlayers = room.players.filter(p => !room.winners.includes(p.color));
+      if (remainingPlayers.length <= 1) {
+        room.gameStarted = false;
+        const loser = remainingPlayers[0] || null;
+        io.to(socket.roomCode).emit('gameOver', {
+          winners: room.winners.map(c => room.players.find(p => p.color === c)),
+          loser: loser
+        });
+        return;
+      }
+
+      if (!bonus || allFourHome) {
+        room.turnIndex = getNextTurnIndex(room);
       }
 
       io.to(socket.roomCode).emit('tokenMoved', {
