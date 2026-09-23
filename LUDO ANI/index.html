@@ -21,7 +21,6 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     
-    /* Photo Matching Pattern Background */
     body {
       background: #0284c7;
       background-image: radial-gradient(#38bdf8 15%, transparent 16%), radial-gradient(#0369a1 15%, transparent 16%);
@@ -50,7 +49,7 @@
 
     #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; }
 
-    /* Top Player 2 Box (Exact Photo Layout) */
+    /* Top Player 2 Box */
     .top-bar-box {
       width: 94vw; max-width: 410px; display: flex; justify-content: flex-end; margin-bottom: 8px;
     }
@@ -59,7 +58,7 @@
       display: flex; align-items: center; padding: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .indicator-badge {
-      background: #0284c7; width: 44px; height: 44px; border-radius: 6px;
+      background: #0284c7; width: 42px; height: 42px; border-radius: 6px;
       display: flex; align-items: center; justify-content: center; margin-left: 6px;
     }
 
@@ -76,7 +75,7 @@
     .cell {
       border: 0.5px solid #cbd5e1; position: relative;
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: bold;
+      font-size: 13px; font-weight: bold;
     }
 
     /* 4 Corner Home Bases */
@@ -108,7 +107,7 @@
     /* Center Triangle */
     .center-finish {
       position: absolute; top: 40%; left: 40%; width: 20%; height: 20%;
-      background: conic-gradient(var(--board-yellow) 0deg 90deg, var(--board-blue) 90deg 180deg, var(--board-red) 180deg 270deg, var(--board-green) 270deg 360deg);
+      background: conic-gradient(var(--board-yellow) 0deg 90deg, var(--board-blue) 90deg 180deg, var(--board-red) 270deg 360deg, var(--board-green) 0deg 90deg);
       border: 2px solid #1e293b;
     }
 
@@ -120,19 +119,18 @@
 
     .star-symbol { font-size: 20px; color: #64748b; font-weight: normal; }
 
-    /* Pin Goti with Shadow */
+    /* Goti Pin */
     .pin {
       width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg); cursor: pointer; border: 2.5px solid #ffffff;
       box-shadow: 0 4px 6px rgba(0,0,0,0.6); position: absolute; z-index: 20;
-      transition: all 0.15s ease-out;
     }
     .pin-red    { background: #dc2626; }
     .pin-green  { background: #16a34a; }
     .pin-yellow { background: #facc15; }
     .pin-blue   { background: #2563eb; }
 
-    /* Bottom Control Bar */
+    /* Bottom Control Bar - Photo Matching */
     .bottom-bar {
       width: 94vw; max-width: 410px; margin-top: 14px;
       display: flex; align-items: center; justify-content: flex-start; gap: 10px;
@@ -145,10 +143,13 @@
       background: #0284c7; width: 44px; height: 44px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center; position: relative;
     }
+    
+    /* Dice Cube: Clean Bold Integer */
     .dice-cube {
-      width: 46px; height: 46px; background: white; border-radius: 8px;
+      width: 48px; height: 48px; background: #ffffff; border-radius: 8px;
       border: 2px solid #94a3b8; display: flex; align-items: center; justify-content: center;
-      font-size: 24px; font-weight: bold; color: #0f172a; cursor: pointer; box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+      font-size: 26px; font-weight: 900; color: #0f172a; cursor: pointer;
+      box-shadow: inset 0 -3px 0 rgba(0,0,0,0.15), 0 3px 6px rgba(0,0,0,0.2);
     }
     .arrow-pointer {
       width: 0; height: 0;
@@ -181,7 +182,7 @@
     <button class="btn btn-blue" onclick="joinRoom()">🔑 Join Room</button>
   </div>
 
-  <!-- Room Lobby View -->
+  <!-- Room Lobby -->
   <div id="lobbyView" class="panel" style="display:none;">
     <h2 style="color:#facc15;">🏠 Room Lobby</h2>
     <div style="font-size:14px; color:#94a3b8; margin-top:8px;">Dosto ko yeh 4-Digit code bhejein:</div>
@@ -259,7 +260,8 @@
         <div class="badge-icon">
           <div id="myPinIcon" class="pin pin-red" style="position:static; transform:rotate(-45deg);"></div>
         </div>
-        <div id="diceCube" class="dice-cube" onclick="rollDice()">●</div>
+        <!-- Clean Integer Dice -->
+        <div id="diceCube" class="dice-cube" onclick="rollDice()">-</div>
       </div>
       <div id="turnArrow" class="arrow-pointer"></div>
       <div id="turnStatus" style="font-size:14px; font-weight:bold; margin-left:10px;">Player 1 Turn</div>
@@ -275,75 +277,71 @@
     let myColor = 'red';
     let currentTokens = {};
     let isMyTurn = false;
-    let isMoving = false;
 
-    // Advance Synthesizer Sound Engine
+    // Web Audio Synthesizer
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioContextClass();
+    let audioCtx = null;
 
-    function playAudioFx(fx) {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const now = audioCtx.currentTime;
+    function playAudioFx(type) {
+      try {
+        if (!audioCtx) audioCtx = new AudioContextClass();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
 
-      if (fx === 'puk') {
-        // Goti step wooden knock: puk puk puk
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(now); osc.stop(now + 0.08);
-      } else if (fx === 'yes') {
-        // 6 se goti nikalne par: celebratory Yes trumpet
-        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+        if (type === 'dice') {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'square';
-          osc.frequency.setValueAtTime(freq, now + i * 0.07);
-          gain.gain.setValueAtTime(0.15, now + i * 0.07);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.07 + 0.18);
+          osc.frequency.setValueAtTime(240, now);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
           osc.connect(gain); gain.connect(audioCtx.destination);
-          osc.start(now + i * 0.07); osc.stop(now + i * 0.07 + 0.18);
-        });
-      } else if (fx === 'puipui') {
-        // Goti katne par descending slide: pui-pui-pui
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(900, now);
-        osc.frequency.exponentialRampToValueAtTime(150, now + 0.45);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(now); osc.stop(now + 0.45);
-      } else if (fx === 'twinkle') {
-        // Laal hone par magical star twinkling chime
-        [1046.5, 1318.5, 1567.98, 2093.0].forEach((f, idx) => {
+          osc.start(now); osc.stop(now + 0.08);
+        } else if (type === 'puk') {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(f, now + idx * 0.09);
-          gain.gain.setValueAtTime(0.25, now + idx * 0.09);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.35);
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(350, now);
+          osc.frequency.exponentialRampToValueAtTime(70, now + 0.07);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
           osc.connect(gain); gain.connect(audioCtx.destination);
-          osc.start(now + idx * 0.09); osc.stop(now + idx * 0.09 + 0.35);
-        });
-      } else if (fx === 'dice') {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(220, now);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(now); osc.stop(now + 0.09);
-      }
+          osc.start(now); osc.stop(now + 0.07);
+        } else if (type === 'yes') {
+          [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(f, now + i * 0.06);
+            gain.gain.setValueAtTime(0.15, now + i * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.06 + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.06); osc.stop(now + i * 0.06 + 0.15);
+          });
+        } else if (type === 'puipui') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(140, now + 0.35);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now); osc.stop(now + 0.35);
+        } else if (type === 'twinkle') {
+          [1046.5, 1318.5, 1567.98, 2093.0].forEach((f, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(f, now + i * 0.08);
+            gain.gain.setValueAtTime(0.2, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.3);
+          });
+        }
+      } catch (e) {}
     }
 
-    // Build 15x15 Board matching photo
+    // 15x15 Board Builder
     function buildBoard() {
       const b = document.getElementById('board');
       b.innerHTML = '';
@@ -370,7 +368,7 @@
           if (r === 7 && c >= 9 && c <= 13) cell.classList.add('bg-blue');
           if (r === 8 && c === 13) cell.classList.add('bg-blue');
 
-          // 4 Hollow Stars matching photo
+          // 4 Hollow Stars
           if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
             cell.innerHTML = '<span class="star-symbol">☆</span>';
           }
@@ -387,7 +385,7 @@
     }
     buildBoard();
 
-    // 52 Global track steps
+    // 52 Global Step Tracks
     const trackCoords = [
       [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
       [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -436,7 +434,7 @@
     }
 
     function rollDice() {
-      if (!isMyTurn || isMoving) return;
+      if (!isMyTurn) return;
       playAudioFx('dice');
       socket.emit('rollDice');
     }
@@ -478,10 +476,9 @@
       updateTurnIndicator(data.activeColor);
     });
 
+    // Integer Dice Display
     socket.on('diceRolled', (data) => {
-      const diceCube = document.getElementById('diceCube');
-      const dots = ['●', '⚁', '⚂', '⚃', '⚄', '⚅'];
-      diceCube.innerText = dots[data.roll - 1] || data.roll;
+      document.getElementById('diceCube').innerText = data.roll; // Pure Integer Number
       if (data.message) {
         document.getElementById('turnStatus').innerText = data.message;
       }
@@ -493,77 +490,16 @@
       updateTurnIndicator(data.activeColor);
     });
 
-    // Step-by-step Animated Walking with Puk-Puk, Yes, Pui-Pui, Twinkle
     socket.on('tokenMoved', (data) => {
-      isMoving = true;
-      const { moveColor, tokenIndex, fromStep, toStep, eventType, tokens, activeColor, killedInfo } = data;
+      if (data.eventType === 'out') playAudioFx('yes');
+      else if (data.eventType === 'kill') playAudioFx('puipui');
+      else if (data.eventType === 'home') playAudioFx('twinkle');
+      else playAudioFx('puk');
 
-      if (eventType === 'out') {
-        // Goti 6 se nikli: Yes audio fx
-        playAudioFx('yes');
-        currentTokens = tokens;
-        renderAllTokens();
-        isMoving = false;
-        updateTurnIndicator(activeColor);
-      } else {
-        // Step by step walking
-        let cur = fromStep;
-        const walkInterval = setInterval(() => {
-          cur++;
-          playAudioFx('puk'); // Har kadam par puk-puk
-          renderSingleStep(moveColor, tokenIndex, cur);
-
-          if (cur >= toStep) {
-            clearInterval(walkInterval);
-
-            if (eventType === 'home') {
-              playAudioFx('twinkle'); // Laal hone par twinkle sound
-            }
-
-            if (eventType === 'kill' && killedInfo) {
-              // Backward reverse trail with pui-pui sound
-              playAudioFx('puipui');
-              animateReverseKill(killedInfo.color, killedInfo.index, killedInfo.fromStep, () => {
-                currentTokens = tokens;
-                renderAllTokens();
-                isMoving = false;
-                updateTurnIndicator(activeColor);
-              });
-            } else {
-              currentTokens = tokens;
-              renderAllTokens();
-              isMoving = false;
-              updateTurnIndicator(activeColor);
-            }
-          }
-        }, 160); // Aram-aram se chalne ka time
-      }
+      currentTokens = data.tokens;
+      renderAllTokens();
+      updateTurnIndicator(data.activeColor);
     });
-
-    function renderSingleStep(col, tokIdx, step) {
-      document.querySelectorAll(`.pin-${col}-${tokIdx}`).forEach(e => e.remove());
-      const cellId = getCellIdForStep(col, step);
-      const target = document.getElementById(cellId);
-      if (target) {
-        const pin = document.createElement('div');
-        pin.className = `pin pin-${col} pin-${col}-${tokIdx} pin-on-board`;
-        target.appendChild(pin);
-      }
-    }
-
-    // Reverse path animation for killed goti
-    function animateReverseKill(kCol, kIdx, kFromStep, onDone) {
-      let backStep = kFromStep;
-      const backInterval = setInterval(() => {
-        backStep -= 2; // Fast rewind
-        if (backStep <= 0) {
-          clearInterval(backInterval);
-          onDone();
-        } else {
-          renderSingleStep(kCol, kIdx, backStep);
-        }
-      }, 70);
-    }
 
     function updateTurnIndicator(activeColor) {
       isMyTurn = (activeColor === myColor);
@@ -577,7 +513,7 @@
     function renderAllTokens() {
       document.querySelectorAll('.pin-on-board').forEach(p => p.remove());
 
-      ['red', 'green', 'yellow', 'blue'].forEach(col => {
+      ['red', 'yellow', 'green', 'blue'].forEach(col => {
         if (!currentTokens[col]) return;
 
         currentTokens[col].forEach((tok, idx) => {
@@ -586,9 +522,12 @@
             if (slot) {
               slot.innerHTML = '';
               const pin = document.createElement('div');
-              pin.className = `pin pin-${col} pin-${col}-${idx}`;
-              pin.onclick = () => {
-                if (isMyTurn && !isMoving && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+              pin.className = `pin pin-${col}`;
+              pin.onclick = (e) => {
+                e.stopPropagation();
+                if (isMyTurn && col === myColor) {
+                  socket.emit('moveToken', { tokenIndex: idx });
+                }
               };
               slot.appendChild(pin);
             }
@@ -597,9 +536,12 @@
             const targetCell = document.getElementById(cellId);
             if (targetCell) {
               const pin = document.createElement('div');
-              pin.className = `pin pin-${col} pin-${col}-${idx} pin-on-board`;
-              pin.onclick = () => {
-                if (isMyTurn && !isMoving && col === myColor) socket.emit('moveToken', { tokenIndex: idx });
+              pin.className = `pin pin-${col} pin-on-board`;
+              pin.onclick = (e) => {
+                e.stopPropagation();
+                if (isMyTurn && col === myColor) {
+                  socket.emit('moveToken', { tokenIndex: idx });
+                }
               };
               targetCell.appendChild(pin);
             }
@@ -610,7 +552,7 @@
 
     socket.on('playerRanked', ({ color, name, rank }) => {
       const ranks = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
-      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan laal karke ${ranks[rank-1] || rank} rank haasil ki!`);
+      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home karke ${ranks[rank-1] || rank} rank haasil ki!`);
     });
 
     socket.on('gameOver', ({ winners, loser }) => {
