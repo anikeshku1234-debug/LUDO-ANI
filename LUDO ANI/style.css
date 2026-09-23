@@ -335,12 +335,9 @@ body {
   justify-content: center;
   align-items: center;
   z-index: 5;
-  transition: opacity 0.3s ease;
 }
-.yard.inactive-player {
-  opacity: 0.38;
-  filter: grayscale(0.85);
-}
+
+/* Color remains vibrant on all yards */
 .yard-green  { top: 0; left: 0; background: var(--ludo-green); }
 .yard-yellow { top: 0; right: 0; background: var(--ludo-yellow); }
 .yard-red    { bottom: 0; left: 0; background: var(--ludo-red); }
