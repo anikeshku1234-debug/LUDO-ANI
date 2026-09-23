@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - CLIENT ENGINE WITH EXACT STAR POSITIONS & ACTIVE HOMES
+ * LUDO ROYALE - CLIENT ENGINE (STARS SHIFTED 5 HOUSES BACKWARD)
  * ============================================================================
  */
 
@@ -155,7 +155,7 @@
     blue:   { offset: 39 }
   };
 
-  // 8 Safe cells: Starts [0, 13, 26, 39] + Stars [8, 21, 34, 47]
+  // 8 Safe Cells: 4 Entrances [0, 13, 26, 39] + 4 Stars [8, 21, 34, 47]
   const SAFE_CELL_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
 
   function getVisualCoordsForStep(color, step) {
@@ -205,7 +205,7 @@
       this.winners = [];
       this.tokens = {};
 
-      // Initialize tokens for ALL 4 colors so inactive colors stay visible with tokens in their base!
+      // 4 colors initialization so inactive bases remain colored with tokens
       ['red', 'green', 'yellow', 'blue'].forEach(color => {
         this.tokens[color] = [
           { id: 0, step: -1 },
@@ -255,7 +255,7 @@
     }
   };
 
-  // 4. UI BUILDER (EXACT REFERENCE POSITIONS)
+  // 4. UI BUILDER (EXACT SHIFTED STAR POSITIONS)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -282,12 +282,12 @@
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
-        // 4 Safe Stars matching reference screenshot exactly:
-        // Left arm: row 8, col 2
-        // Top arm: row 2, col 6
-        // Right arm: row 6, col 12
-        // Bottom arm: row 12, col 8
-        if ((r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12) || (r === 12 && c === 8)) {
+        // 4 Safe Stars shifted 5 cells backward:
+        // Left arm: (6, 2)
+        // Top arm: (2, 8)
+        // Right arm: (8, 12)
+        // Bottom arm: (12, 6)
+        if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
           cell.classList.add('safe-cell-star');
         }
 
@@ -329,7 +329,6 @@
     const layer = document.getElementById('tokens-layer');
     layer.innerHTML = '';
 
-    // Render all 4 colors so inactive bases also show their gotis!
     ['red', 'green', 'yellow', 'blue'].forEach(color => {
       const pTokens = GameState.tokens[color];
       if (!pTokens) return;
@@ -496,7 +495,6 @@
     const id = parseInt(e.currentTarget.dataset.id, 10);
     const currentPlayer = GameState.getCurrentPlayer();
 
-    // Inactive colors or not your turn -> reject click
     if (!currentPlayer || color !== currentPlayer.color) return;
     if (GameState.isOnline && color !== GameState.myOnlineColor) return;
 
@@ -679,7 +677,6 @@
   }
 
   function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
-    // Keep all yards colorful! Display player name if active, or keep color label
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const label = document.getElementById(`label-${c}`);
       const p = configuredPlayers.find(x => x.color === c);
@@ -784,7 +781,6 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // Online Room Actions
     document.getElementById('btn-create-room').addEventListener('click', () => {
       const s = getSocket();
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
