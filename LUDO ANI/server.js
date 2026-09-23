@@ -7,7 +7,6 @@ const fs = require('fs');
 const app = express();
 const server = http.createServer(app);
 
-// Direct socket server with both polling and websocket enabled
 const io = new Server(server, {
   cors: { origin: "*" },
   transports: ['polling', 'websocket']
@@ -36,10 +35,13 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
-const rooms = {};
+// GLOBAL ROOMS OBJECT
+const rooms = new Map();
 const COLOR_ORDER = ['red', 'yellow', 'green', 'blue'];
 
 io.on('connection', (socket) => {
+  console.log('Connected:', socket.id);
+
   // CREATE ROOM
   socket.on('createRoom', ({ hostName }) => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -49,89 +51,115 @@ io.on('connection', (socket) => {
     }
 
     const host = (hostName || 'Host Player').trim();
-    rooms[code] = {
+    const newRoom = {
       roomCode: code,
       hostId: socket.id,
       gameStarted: false,
       players: [{ id: socket.id, name: host, color: 'red', isHost: true }]
     };
 
+    rooms.set(code, newRoom);
     socket.join(code);
     socket.roomCode = code;
-    socket.playerColor = 'red';
 
     socket.emit('roomCreatedSuccess', {
       roomCode: code,
-      players: rooms[code].players,
+      players: newRoom.players,
       myColor: 'red'
     });
+    console.log(`Room created: [${code}] by [${host}]`);
   });
 
   // JOIN ROOM
   socket.on('joinRoom', ({ playerName, roomCode }) => {
-    const code = (roomCode || '').trim().toUpperCase();
-    const room = rooms[code];
+    const rawCode = (roomCode || '').toString().trim().toUpperCase().replace(/\s+/g, '');
+    console.log(`Join attempt with code: [${rawCode}]`);
 
-    if (!room) {
-      socket.emit('roomError', `Room (${code}) nahi mila! Kripya code check karein.`);
+    let targetRoom = null;
+    let targetCode = null;
+
+    // Direct search & fallback case-insensitive search
+    if (rooms.has(rawCode)) {
+      targetRoom = rooms.get(rawCode);
+      targetCode = rawCode;
+    } else {
+      for (let [k, v] of rooms.entries()) {
+        if (k.trim().toUpperCase() === rawCode) {
+          targetRoom = v;
+          targetCode = k;
+          break;
+        }
+      }
+    }
+
+    if (!targetRoom) {
+      console.log(`Failed: Room [${rawCode}] not found. Active rooms:`, Array.from(rooms.keys()));
+      socket.emit('roomError', `Room (${rawCode}) nahi mila! Kripya code check karein.`);
       return;
     }
-    if (room.gameStarted) {
+
+    if (targetRoom.gameStarted) {
       socket.emit('roomError', 'Game pehle hi shuru ho chuka hai!');
       return;
     }
-    if (room.players.length >= 4) {
-      socket.emit('roomError', 'Room full hai (Max 4 Players)!');
+
+    if (targetRoom.players.length >= 4) {
+      socket.emit('roomError', 'Room full ho chuka hai (Max 4 Players)!');
       return;
     }
 
-    const assignedColor = COLOR_ORDER[room.players.length] || 'yellow';
-    const guest = (playerName || `Player ${room.players.length + 1}`).trim();
+    const assignedColor = COLOR_ORDER[targetRoom.players.length] || 'yellow';
+    const guest = (playerName || `Player ${targetRoom.players.length + 1}`).trim();
 
-    room.players.push({
+    targetRoom.players.push({
       id: socket.id,
       name: guest,
       color: assignedColor,
       isHost: false
     });
 
-    socket.join(code);
-    socket.roomCode = code;
-    socket.playerColor = assignedColor;
+    socket.join(targetCode);
+    socket.roomCode = targetCode;
 
     socket.emit('roomJoinedSuccess', {
-      roomCode: code,
-      players: room.players,
+      roomCode: targetCode,
+      players: targetRoom.players,
       myColor: assignedColor
     });
 
-    io.to(code).emit('lobbyPlayerUpdate', {
-      players: room.players,
-      hostId: room.hostId
+    // Notify all players in room
+    io.to(targetCode).emit('lobbyPlayerUpdate', {
+      players: targetRoom.players,
+      hostId: targetRoom.hostId
     });
+
+    console.log(`Success: [${guest}] joined room [${targetCode}]`);
   });
 
-  // START GAME (HOST)
+  // START ONLINE GAME
   socket.on('startOnlineGame', () => {
-    const room = rooms[socket.roomCode];
-    if (!room) return;
+    const code = socket.roomCode;
+    if (!code || !rooms.has(code)) return;
+    const room = rooms.get(code);
+
     if (room.hostId !== socket.id) {
-      socket.emit('roomError', 'Sirf Host match shuru kar sakta hai!');
+      socket.emit('roomError', 'Sirf Host game start kar sakta hai!');
       return;
     }
+
     if (room.players.length < 2) {
-      socket.emit('roomError', 'Kam se kam 2 players judne chahiye!');
+      socket.emit('roomError', 'Kam se kam 2 players chahiye!');
       return;
     }
 
     room.gameStarted = true;
-    io.to(socket.roomCode).emit('onlineGameStarted', {
+    io.to(code).emit('onlineGameStarted', {
       players: room.players,
       activeColor: 'red'
     });
   });
 
-  // SYNC ACTION
+  // GAME ACTION SYNC
   socket.on('broadcastGameAction', (actionData) => {
     if (socket.roomCode) {
       socket.to(socket.roomCode).emit('receiveGameAction', actionData);
@@ -140,15 +168,16 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     const code = socket.roomCode;
-    const room = rooms[code];
-    if (room) {
+    if (code && rooms.has(code)) {
+      const room = rooms.get(code);
       room.players = room.players.filter(p => p.id !== socket.id);
       if (room.players.length === 0) {
-        delete rooms[code];
+        rooms.delete(code);
+        console.log(`Room [${code}] deleted (Empty)`);
       } else {
         if (room.hostId === socket.id) {
           room.hostId = room.players[0].id;
-          if (room.players[0]) room.players[0].isHost = true;
+          room.players[0].isHost = true;
         }
         io.to(code).emit('lobbyPlayerUpdate', {
           players: room.players,
@@ -160,5 +189,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo Engine active on port ${PORT}`);
+  console.log(`Server live on ${PORT}`);
 });
