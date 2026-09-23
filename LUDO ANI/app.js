@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT GAME ENGINE (EXACT MATCHING STAR & FIXED ROOM SYNC)
+ * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH 4-DIGIT INTEGER ROOM SYNC
  * ============================================================================
  */
 
@@ -10,7 +10,7 @@
   // Global socket setup
   const socket = (typeof io !== 'undefined') ? io({ transports: ['polling', 'websocket'] }) : null;
 
-  // 1. SOUND MANAGER
+  // 1. SOUND MANAGER (WEB AUDIO SYNTHESIZER)
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -129,7 +129,7 @@
     }
   };
 
-  // 2. COORDINATES & PATH GEOMETRY
+  // 2. 15x15 BOARD COORDINATES
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -164,7 +164,7 @@
     }
   }
 
-  // 3. GAME RULES & STATE ENGINE
+  // 3. GAME STATE
   const GAME_RULES = { THREE_SIX_PENALTY: true };
 
   const GameState = {
@@ -240,7 +240,7 @@
     }
   };
 
-  // 4. UI BUILDER (Exact photo matched stars)
+  // 4. UI BUILDER (Exact Reference Matched Stars)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -354,7 +354,7 @@
     });
   }
 
-  // 5. ANIMATIONS
+  // 5. ANIMATIONS (Acoustic Cell-by-cell Puk & Suuu)
   async function animateTokenSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -651,7 +651,7 @@
     syncUIWithTurn();
   }
 
-  // 8. PURE SOCKET EVENT HANDLERS
+  // 8. PURE SOCKET EVENT HANDLERS (4-Digit Room Handling)
   function setupRoomSocketListeners() {
     if (!socket) return;
 
@@ -773,25 +773,25 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // DIRECT CREATE ROOM
+    // 4-DIGIT CREATE ROOM
     document.getElementById('btn-create-room').addEventListener('click', () => {
       if (!socket) return alert('Server connecting... Kripya refresh karein.');
       const btn = document.getElementById('btn-create-room');
-      btn.innerText = 'Creating Room...';
+      btn.innerText = 'Creating 4-Digit Room...';
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
       socket.emit('createRoom', { hostName: name });
     });
 
-    // DIRECT JOIN ROOM (Robust input cleaning)
+    // 4-DIGIT JOIN ROOM
     document.getElementById('btn-join-room').addEventListener('click', () => {
       if (!socket) return alert('Server connecting... Kripya refresh karein.');
       const btn = document.getElementById('btn-join-room');
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const rawInput = document.getElementById('join-room-code').value || '';
-      const code = rawInput.trim().toUpperCase().replace(/\s+/g, '');
+      const code = rawInput.toString().trim().replace(/\s+/g, '');
 
-      if (!code || code.length < 4) {
-        return alert('Kripya sahi room code daalein!');
+      if (!code || code.length !== 4) {
+        return alert('Kripya sahi 4-digit numeric room code daalein (Jaise: 5821)!');
       }
 
       btn.innerText = 'Joining...';
