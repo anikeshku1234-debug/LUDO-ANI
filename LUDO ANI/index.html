@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ludo Royale - Advanced Master Edition</title>
+  <title>Ludo Royale - 4-Digit Multiplayer</title>
 
   <!-- PWA & Mobile App Icons -->
   <link rel="manifest" href="/manifest.json">
@@ -15,8 +15,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <link rel="stylesheet" href="style.css">
-
-  <!-- Direct Native Socket.io script from your own server -->
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -56,7 +54,7 @@
         <button class="btn btn-primary btn-large" id="btn-start-passplay">START GAME</button>
       </div>
 
-      <!-- Tab 2: Multiplayer Room Simulation / WS Interface -->
+      <!-- Tab 2: 4-Digit Integer Room Lobby -->
       <div id="tab-room" class="tab-content">
         <div class="room-action-cards">
           <div class="room-box">
@@ -64,8 +62,8 @@
             <input type="text" id="host-player-name" placeholder="Enter your name" value="Host Player">
             <button class="btn btn-secondary" id="btn-create-room">CREATE ROOM</button>
             <div id="created-code-box" class="code-badge" style="display:none;">
-              <span>ROOM CODE:</span>
-              <strong id="display-room-code">------</strong>
+              <span>4-DIGIT CODE:</span>
+              <strong id="display-room-code" style="font-size: 20px; letter-spacing: 4px; color: #facc15;">----</strong>
             </div>
           </div>
 
@@ -74,7 +72,7 @@
           <div class="room-box">
             <h3>JOIN EXISTING ROOM</h3>
             <input type="text" id="join-player-name" placeholder="Your name" value="Guest Player">
-            <input type="text" id="join-room-code" placeholder="Enter 6-char Code" maxlength="6">
+            <input type="number" id="join-room-code" placeholder="Enter 4-Digit Code" maxlength="4" style="letter-spacing: 3px; font-size: 16px;">
             <button class="btn btn-primary" id="btn-join-room">JOIN ROOM</button>
           </div>
         </div>
@@ -84,8 +82,6 @@
 
   <!-- GAMEPLAY SCREEN -->
   <div id="game-screen" class="screen-view" style="display: none;">
-    
-    <!-- Top HUD Header -->
     <header class="game-hud">
       <div class="hud-left">
         <button id="btn-settings-open" class="icon-btn" title="Settings">⚙️</button>
@@ -147,7 +143,7 @@
           </div>
         </div>
 
-        <!-- Central Finishing Destination -->
+        <!-- 3x3 Center Triangular Destination -->
         <div class="board-center-triangle">
           <div class="triangle-part tri-green"></div>
           <div class="triangle-part tri-yellow"></div>
@@ -159,12 +155,12 @@
         <!-- Generated Grid Cells -->
         <div id="cells-layer" class="cells-grid-layer"></div>
 
-        <!-- Dynamic Movable Tokens Mounted here -->
+        <!-- Movable Tokens Layer -->
         <div id="tokens-layer" class="tokens-interactive-layer"></div>
       </div>
     </main>
 
-    <!-- BOTTOM CONTROL BAR -->
+    <!-- BOTTOM CONTROL BAR: Physical 3D Dice -->
     <footer class="game-footer-dock">
       <div class="player-indicator-badge" id="active-badge-card">
         <div class="pin-sample" id="badge-pin-icon"></div>
@@ -188,7 +184,6 @@
         <div id="dice-pointer-arrow" class="dice-pointer"></div>
       </div>
     </footer>
-
   </div>
 
   <!-- MODALS -->
