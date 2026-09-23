@@ -40,6 +40,7 @@ app.get('/logo-512.png', (req, res) => {
 });
 
 const rooms = {};
+// Turn order clockwise as per standard board: Red -> Green -> Yellow -> Blue
 const COLORS = ['red', 'green', 'yellow', 'blue'];
 
 function getFairRoll() {
@@ -59,7 +60,6 @@ function getNextTurnIndex(room) {
   return -1;
 }
 
-// Bot AI helper
 function executeBotTurn(roomCode) {
   const room = rooms[roomCode];
   if (!room || !room.gameStarted) return;
@@ -81,11 +81,11 @@ function executeBotTurn(roomCode) {
       room.consecutiveSixes = 0;
       room.currentRoll = 0;
       room.turnIndex = getNextTurnIndex(room);
-      io.to(roomCode).emit('diceRolled', { roll: 6, activeColor: activePlayer.color, canMove: false, message: '3 Sixes in a row! Chance passed.' });
+      io.to(roomCode).emit('diceRolled', { roll: 6, activeColor: activePlayer.color, canMove: false, message: '3 Baar 6 aaya! Baari agle player ko mili.' });
       setTimeout(() => {
         io.to(roomCode).emit('turnChanged', { activeColor: room.players[room.turnIndex].color, tokens: room.tokens });
         executeBotTurn(roomCode);
-      }, 1000);
+      }, 1100);
       return;
     }
 
@@ -102,16 +102,17 @@ function executeBotTurn(roomCode) {
     if (!canMove) {
       setTimeout(() => {
         room.currentRoll = 0;
+        room.consecutiveSixes = 0;
         room.turnIndex = getNextTurnIndex(room);
         io.to(roomCode).emit('turnChanged', { activeColor: room.players[room.turnIndex].color, tokens: room.tokens });
         executeBotTurn(roomCode);
       }, 900);
     } else {
-      // Pick best token (Prioritize kill or exiting base)
       setTimeout(() => {
+        // AI Decision logic: Kill priority > Exit base priority > Furthest step
         let chosenIdx = moveable[0];
         const outToken = moveable.find(idx => myTokens[idx].step === -1);
-        if (outToken !== undefined) chosenIdx = outToken;
+        if (outToken !== undefined && roll === 6) chosenIdx = outToken;
 
         handleMove(roomCode, activePlayer.color, chosenIdx);
       }, 700);
@@ -148,8 +149,11 @@ function handleMove(roomCode, color, tokenIndex) {
       bonus = true;
       eventType = 'home';
     } else if (t.step < 51) {
+      // 52 Global track steps
+      // Red: 0, Green: 13, Yellow: 26, Blue: 39
       const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
       const myGlobal = (START_OFFSET[color] + t.step) % 52;
+      // 8 Safe places: 4 start positions & 4 star positions
       const safeGlobals = [0, 8, 13, 21, 26, 34, 39, 47];
 
       if (!safeGlobals.includes(myGlobal)) {
@@ -216,7 +220,7 @@ function handleMove(roomCode, color, tokenIndex) {
 }
 
 io.on('connection', (socket) => {
-  // Create Bot Game Room
+  // Computer AI Mode
   socket.on('createBotGame', ({ playerName }) => {
     const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
     rooms[roomCode] = {
@@ -225,9 +229,9 @@ io.on('connection', (socket) => {
       consecutiveSixes: 0,
       players: [
         { id: socket.id, name: playerName.trim() || 'Player 1', color: 'red', isBot: false },
-        { id: 'bot_green', name: 'Bot Green', color: 'green', isBot: true },
-        { id: 'bot_yellow', name: 'Bot Yellow', color: 'yellow', isBot: true },
-        { id: 'bot_blue', name: 'Bot Blue', color: 'blue', isBot: true }
+        { id: 'bot_green', name: 'Computer (Green)', color: 'green', isBot: true },
+        { id: 'bot_yellow', name: 'Computer (Yellow)', color: 'yellow', isBot: true },
+        { id: 'bot_blue', name: 'Computer (Blue)', color: 'blue', isBot: true }
       ],
       turnIndex: 0,
       currentRoll: 0,
@@ -252,7 +256,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Regular Multiplayer Room
+  // Online Multiplayer Room
   socket.on('createRoom', ({ playerName }) => {
     if (!playerName) return;
     const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
@@ -298,7 +302,7 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.players.length >= 4) {
-      socket.emit('gameError', 'Room full hai!');
+      socket.emit('gameError', 'Room full hai (Maximum 4 Players)!');
       return;
     }
 
@@ -344,7 +348,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Roll Dice with 3-Sixes Check
   socket.on('rollDice', () => {
     const room = rooms[socket.roomCode];
     if (!room || !room.gameStarted || room.currentRoll !== 0) return;
@@ -364,7 +367,7 @@ io.on('connection', (socket) => {
     const roll = getFairRoll();
     room.currentRoll = roll;
 
-    // 3 Six Rule Check
+    // 3 Sixes Consecutive Check
     if (roll === 6) {
       room.consecutiveSixes = (room.consecutiveSixes || 0) + 1;
     } else {
@@ -380,7 +383,7 @@ io.on('connection', (socket) => {
         roll: 6,
         activeColor: activePlayer.color,
         canMove: false,
-        message: 'Lagatar 3 baar 6 aaya! Chance cancel hokar agle player ko mili.'
+        message: '3 Baar lagatar 6 aaya! Baari cancel ho gayi.'
       });
 
       setTimeout(() => {
@@ -409,6 +412,7 @@ io.on('connection', (socket) => {
     if (!canMove) {
       setTimeout(() => {
         room.currentRoll = 0;
+        room.consecutiveSixes = 0;
         room.turnIndex = getNextTurnIndex(room);
         io.to(socket.roomCode).emit('turnChanged', {
           activeColor: room.players[room.turnIndex].color,
