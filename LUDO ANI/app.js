@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - CLIENT ENGINE (STARS SHIFTED 5 HOUSES BACKWARD)
+ * LUDO ROYALE - EXACT REFERENCE STAR POSITIONED CLIENT ENGINE
  * ============================================================================
  */
 
@@ -205,7 +205,7 @@
       this.winners = [];
       this.tokens = {};
 
-      // 4 colors initialization so inactive bases remain colored with tokens
+      // 4 colors initialization so inactive bases remain colorful with their tokens
       ['red', 'green', 'yellow', 'blue'].forEach(color => {
         this.tokens[color] = [
           { id: 0, step: -1 },
@@ -255,7 +255,7 @@
     }
   };
 
-  // 4. UI BUILDER (EXACT SHIFTED STAR POSITIONS)
+  // 4. UI BUILDER (EXACT CURSOR-MATCHED STAR POSITIONS)
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
     layer.innerHTML = '';
@@ -282,12 +282,12 @@
         if (r === 7 && c >= 9 && c <= 13) cell.classList.add('cell-blue-path');
         if (r === 8 && c === 13) cell.classList.add('cell-blue-path');
 
-        // 4 Safe Stars shifted 5 cells backward:
-        // Left arm: (6, 2)
-        // Top arm: (2, 8)
-        // Right arm: (8, 12)
-        // Bottom arm: (12, 6)
-        if ((r === 6 && c === 2) || (r === 2 && c === 8) || (r === 8 && c === 12) || (r === 12 && c === 6)) {
+        // Safe Stars positioned exactly where the cursor is pointing:
+        // Bottom arm (Red arm): Row 12, Col 8 (Right column where cursor pointed)
+        // Left arm (Green arm): Row 8, Col 2 (Bottom row)
+        // Top arm (Yellow arm): Row 2, Col 6 (Left column)
+        // Right arm (Blue arm): Row 6, Col 12 (Top row)
+        if ((r === 12 && c === 8) || (r === 8 && c === 2) || (r === 2 && c === 6) || (r === 6 && c === 12)) {
           cell.classList.add('safe-cell-star');
         }
 
@@ -781,6 +781,7 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
+    // Online Room Actions
     document.getElementById('btn-create-room').addEventListener('click', () => {
       const s = getSocket();
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
