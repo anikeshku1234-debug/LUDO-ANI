@@ -581,6 +581,32 @@
     socket.on('lobbyUpdate', (data) => {
       updateLobby(data.players, data.hostId);
     });
+    // Winner rank notification
+    socket.on('playerRanked', ({ color, name, rank }) => {
+      const suffixes = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
+      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home kar li hain aur ${suffixes[rank - 1] || rank} position haasil ki!`);
+    });
+
+    // Game finish popup with Winners + Looser
+    socket.on('gameOver', ({ winners, loser }) => {
+      let resultHtml = `<h2>🎮 Khel Khatam!</h2><div style="font-size:16px; margin: 15px 0;">`;
+      
+      const ranks = ['1st Winner 🥇', '2nd Winner 🥈', '3rd Winner 🥉'];
+      winners.forEach((p, idx) => {
+        resultHtml += `<p style="color:#22c55e; font-weight:bold;">${ranks[idx]}: ${p.name} (${p.color.toUpperCase()})</p>`;
+      });
+
+      if (loser) {
+        resultHtml += `<p style="color:#ef4444; font-weight:bold; margin-top:15px; border-top:1px dashed #64748b; padding-top:10px;">❌ Looser: ${loser.name} (${loser.color.toUpperCase()})</p>`;
+      }
+      
+      resultHtml += `</div><button onclick="location.reload()" style="padding:10px 20px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">Play Again</button>`;
+
+      const modal = document.createElement('div');
+      modal.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1e293b; color:white; padding:25px; border-radius:15px; box-shadow:0 0 25px rgba(0,0,0,0.8); text-align:center; z-index:9999; min-width:280px; border:2px solid #eab308;";
+      modal.innerHTML = resultHtml;
+      document.body.appendChild(modal);
+    });
 
     function showLobby(code, players) {
       document.getElementById('menuView').style.display = 'none';
