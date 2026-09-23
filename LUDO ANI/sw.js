@@ -1,18 +1,16 @@
-// Instant Network First Cache to stop blank screen hanging
-self.addEventListener('install', (e) => {
+// Self-destroying service worker to clear cache and allow real-time sockets
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  // Always fetch latest directly from network
-  e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
-  );
+// Bilkul bhi fetch block na kare
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request));
 });
