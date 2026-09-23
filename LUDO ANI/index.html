@@ -3,38 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="manifest" href="/manifest.json" />
-<link rel="icon" type="image/png" href="/logo-192.png" />
-<link rel="apple-touch-icon" href="/logo-192.png" />
-<meta name="theme-color" content="#0f172a" />
-  <title>Ludo Multiplayer Realtime</title>
+  <title>Ludo Classic Live</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
     :root {
-      --red: #ef4444;
-      --green: #22c55e;
-      --yellow: #eab308;
-      --blue: #3b82f6;
-      --bg: #0f172a;
+      --red: #d32f2f;
+      --green: #2e7d32;
+      --yellow: #fbc02d;
+      --blue: #0288d1;
+      --bg: #1e3c72;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
-    body { background: var(--bg); color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background: radial-gradient(circle, #2a5298, #1e3c72); color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 10px; }
 
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-top: 25px; text-align: center; }
-    h1 { font-size: 24px; color: #38bdf8; margin-bottom: 16px; }
-    input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 8px; font-size: 15px; }
-    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+    .card { background: rgba(15, 23, 42, 0.9); border: 2px solid #38bdf8; border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); margin-top: 20px; text-align: center; }
+    input { width: 100%; padding: 12px; margin-bottom: 10px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 8px; font-size: 15px; }
+    .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
     .btn-create { background: #10b981; color: white; }
+    .btn-ai { background: #8b5cf6; color: white; }
     .btn-join { background: #0284c7; color: white; }
-    .btn-start { background: #f59e0b; color: white; font-size: 18px; margin-top: 15px; }
-    .btn-start:disabled { background: #475569; cursor: not-allowed; }
 
-    .player-list { list-style: none; margin: 15px 0; text-align: left; }
-    .player-item { padding: 10px 14px; background: #0f172a; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; border-left: 6px solid #64748b; }
-
-    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 440px; }
-    .status-panel { width: 100%; background: #1e293b; border: 1px solid #334155; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-
+    #gameArea { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 420px; }
+    
+    /* LUDO BOARD - SCREENSHOT MATCH */
     #board {
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -42,258 +33,214 @@
       grid-template-columns: repeat(15, 1fr);
       grid-template-rows: repeat(15, 1fr);
       background: #ffffff;
-      border: 4px solid #1e293b;
-      border-radius: 12px;
+      border: 6px solid #111827;
+      border-radius: 4px;
       position: relative;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-      overflow: hidden;
     }
-    .cell { border: 0.5px solid #cbd5e1; position: relative; display: flex; align-items: center; justify-content: center; }
+    .cell { border: 0.5px solid #94a3b8; position: relative; display: flex; align-items: center; justify-content: center; }
 
-    .home { display: flex; align-items: center; justify-content: center; position: relative; }
-    .home-red { grid-column: 1 / 7; grid-row: 1 / 7; background: var(--red); }
-    .home-green { grid-column: 10 / 16; grid-row: 1 / 7; background: var(--green); }
-    .home-yellow { grid-column: 10 / 16; grid-row: 10 / 16; background: var(--yellow); }
-    .home-blue { grid-column: 1 / 7; grid-row: 10 / 16; background: var(--blue); }
+    .home-box { display: flex; align-items: center; justify-content: center; position: relative; }
+    .home-red { grid-column: 1 / 7; grid-row: 10 / 16; background: var(--red); }
+    .home-green { grid-column: 1 / 7; grid-row: 1 / 7; background: var(--green); }
+    .home-yellow { grid-column: 10 / 16; grid-row: 1 / 7; background: var(--yellow); }
+    .home-blue { grid-column: 10 / 16; grid-row: 10 / 16; background: var(--blue); }
 
-    .home-inner { width: 74%; height: 74%; background: white; border-radius: 14px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 6px; gap: 6px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.2); }
-    .home-slot { background: #f8fafc; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .home-inner-white {
+      width: 72%; height: 72%; background: #ffffff; border-radius: 6px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      padding: 6px; gap: 6px;
+    }
+    .home-slot { background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
-    .home-name-tag {
+    .center-home {
+      grid-column: 7 / 10; grid-row: 7 / 10;
+      background: conic-gradient(var(--green) 0deg 90deg, var(--yellow) 90deg 180deg, var(--blue) 180deg 270deg, var(--red) 270deg 360deg);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* SAFE STAMPS IN PLACE OF STARS */
+    .stamp-safe {
+      position: relative;
+    }
+    .stamp-safe::after {
+      content: '';
+      width: 65%;
+      height: 65%;
+      border-radius: 50%;
+      border: 3px double #ffffff;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+    .stamp-red::after { background: var(--red); }
+    .stamp-green::after { background: var(--green); }
+    .stamp-yellow::after { background: var(--yellow); }
+    .stamp-blue::after { background: var(--blue); }
+
+    /* SCREENSHOT MATCHING GOTI (PIN STYLE) */
+    .pawn {
+      width: 26px;
+      height: 32px;
       position: absolute;
-      bottom: 4px;
-      background: rgba(15, 23, 42, 0.85);
-      color: white;
-      font-size: 10px;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 10px;
-      max-width: 85%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      z-index: 15;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-    }
-
-    .center-box {
-      grid-column: 7 / 10;
-      grid-row: 7 / 10;
-      background: conic-gradient(var(--red) 0deg 90deg, var(--green) 90deg 180deg, var(--yellow) 180deg 270deg, var(--blue) 270deg 360deg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .path-red { background: #fca5a5 !important; }
-    .path-green { background: #86efac !important; }
-    .path-yellow { background: #fde047 !important; }
-    .path-blue { background: #93c5fd !important; }
-
-    .safe-red { background: var(--red) !important; }
-    .safe-green { background: var(--green) !important; }
-    .safe-yellow { background: var(--yellow) !important; }
-    .safe-blue { background: var(--blue) !important; }
-
-    /* STAR DESIGN: White box me crisp black outline star */
-    .safe-star::after {
-      content: '☆';
-      font-size: 20px;
-      font-weight: 900;
-      color: #334155;
-      line-height: 1;
-    }
-
-    /* 3D PAWN DESIGN */
-    .token {
-      width: 82%;
-      height: 94%;
-      position: relative;
+      z-index: 20;
       cursor: pointer;
-      z-index: 12;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      transition: transform 0.12s ease-in-out;
-      filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.45));
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+      transition: all 0.2s linear;
     }
-    .token .pawn-head {
-      width: 44%;
-      height: 38%;
+    .pawn-circle {
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      border: 1.5px solid rgba(255, 255, 255, 0.85);
-      position: relative;
-      z-index: 2;
-    }
-    .token .pawn-neck {
-      width: 28%;
-      height: 12%;
-      margin-top: -3px;
-      margin-bottom: -3px;
-      border-radius: 3px;
-      z-index: 1;
-    }
-    .token .pawn-body {
-      width: 72%;
-      height: 52%;
-      border-radius: 40% 40% 50% 50% / 60% 60% 40% 40%;
-      border: 1.5px solid rgba(255, 255, 255, 0.85);
-      position: relative;
-    }
-
-    .token-red .pawn-head, .token-red .pawn-body, .token-red .pawn-neck {
-      background: radial-gradient(circle at 35% 30%, #ff6b6b, #b91c1c 70%, #7f1d1d);
-    }
-    .token-green .pawn-head, .token-green .pawn-body, .token-green .pawn-neck {
-      background: radial-gradient(circle at 35% 30%, #4ade80, #15803d 70%, #14532d);
-    }
-    .token-yellow .pawn-head, .token-yellow .pawn-body, .token-yellow .pawn-neck {
-      background: radial-gradient(circle at 35% 30%, #fde047, #ca8a04 70%, #854d0e);
-    }
-    .token-blue .pawn-head, .token-blue .pawn-body, .token-blue .pawn-neck {
-      background: radial-gradient(circle at 35% 30%, #60a5fa, #1d4ed8 70%, #1e3a8a);
-    }
-
-    .token.active-turn { animation: pulse 0.6s infinite alternate; }
-    @keyframes pulse {
-      from { transform: scale(1); }
-      to { transform: scale(1.3) translateY(-4px); filter: drop-shadow(0 0 10px #38bdf8); }
-    }
-
-    .controls { width: 100%; display: flex; gap: 10px; margin-top: 12px; }
-    .dice-val {
-      width: 62px;
-      height: 62px;
+      border: 2px solid #ffffff;
       background: white;
-      color: #0f172a;
-      border-radius: 12px;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.4);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
-      font-weight: 900;
-      border: 3px solid #38bdf8;
+    }
+    .pawn-core {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .pawn-pointer {
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 8px solid #ffffff;
+      margin-top: -2px;
     }
 
-    .btn-dice {
-      flex: 1;
-      height: 62px;
-      border-radius: 12px;
-      font-size: 18px;
-      font-weight: 900;
-      border: 2px solid #cbd5e1;
-      cursor: pointer;
-      transition: all 0.25s ease;
+    .pawn-red .pawn-core { background: var(--red); }
+    .pawn-green .pawn-core { background: var(--green); }
+    .pawn-yellow .pawn-core { background: var(--yellow); }
+    .pawn-blue .pawn-core { background: var(--blue); }
+
+    .pawn.active-bounce {
+      animation: bounce 0.6s infinite alternate;
     }
-    .btn-dice.my-turn {
-      background: #22c55e !important;
-      color: #ffffff !important;
-      border: 2px solid #16a34a !important;
-      box-shadow: 0 0 16px rgba(34, 197, 94, 0.6);
-      cursor: pointer;
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-8px) scale(1.15); }
     }
-    .btn-dice.other-turn {
-      background: #f8fafc !important;
-      color: #475569 !important;
-      border: 2px solid #94a3b8 !important;
-      cursor: not-allowed;
-      box-shadow: none;
+
+    .controls-bar {
+      width: 100%; margin-top: 15px; display: flex; align-items: center; gap: 15px;
+      background: rgba(15, 23, 42, 0.9); padding: 12px; border-radius: 10px;
+    }
+    .dice-cube {
+      width: 55px; height: 55px; background: #fff; color: #000;
+      font-size: 32px; font-weight: 900; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
     }
   </style>
 </head>
 <body>
 
   <div class="card" id="menuView">
-    <h1>Ludo Multiplayer</h1>
-    <input type="text" id="nameInput" placeholder="Apna Naam Likhein" />
-    <button class="btn btn-create" id="btnCreateRoom">🏠 Room Banayein (Host)</button>
-    
-    <div style="margin: 12px 0; color: #94a3b8;">— YA DUSRE KA ROOM JOIN KAREIN —</div>
-    <input type="text" id="codeInput" placeholder="4-Digit Room Code" />
-    <button class="btn btn-join" id="btnJoinRoom">🔑 Room Join Karein</button>
-  </div>
-
-  <div class="card" id="lobbyView" style="display: none;">
-    <h1>Room Code: <span id="lobbyCode" style="color:#38bdf8;"></span></h1>
-    <p style="color:#94a3b8; font-size:14px;">Dost ko yeh Code share karein (2 se 4 players)</p>
-    <ul class="player-list" id="playerList"></ul>
-    <button class="btn btn-start" id="btnStartGame" style="display: none;" disabled>Game Shuru Karein (Min 2)</button>
-    <p id="waitingMsg" style="color:#cbd5e1; font-size:14px; margin-top:10px; display:none;">Host ke game start karne ka intezar...</p>
+    <h2 style="margin-bottom:12px; color:#38bdf8;">Ludo Master Live</h2>
+    <input type="text" id="nameInput" placeholder="Apna Naam Dalein" />
+    <button class="btn btn-create" id="btnCreate">👥 Create Room (Friends)</button>
+    <button class="btn btn-ai" id="btnAi">🤖 Play with AI</button>
+    <div style="margin: 10px 0;">— YA —</div>
+    <input type="text" id="codeInput" placeholder="Enter Room Code" />
+    <button class="btn btn-join" id="btnJoin">➡️ Join Room</button>
   </div>
 
   <div id="gameArea">
-    <div class="status-panel">
-      <span id="turnLabel">Baari: ...</span>
-      <span id="myBadge" style="font-weight:bold;"></span>
+    <div style="width:100%; display:flex; justify-content:space-between; margin-bottom:6px;">
+      <span id="turnInfo" style="font-weight:bold;">Turn: -</span>
+      <span id="playerBadge" style="font-weight:bold;"></span>
     </div>
     <div id="board"></div>
-    <div class="controls">
-      <div class="dice-val" id="diceBox">-</div>
-      <button class="btn-dice other-turn" id="rollBtn" disabled>Pasa Phenkein</button>
+    <div class="controls-bar">
+      <div class="dice-cube" id="diceBox">-</div>
+      <button id="rollBtn" class="btn btn-create" style="margin:0; flex:1;">🎲 Roll Dice</button>
     </div>
   </div>
 
   <script>
-       if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => console.log('SW error:', err));
-    }
+    const socket = io();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function playSound(type) {
+    // 1. SOUND SYSTEM: "Puk puk", "Pui", "Yes Yes", "Star Twinkle"
+    function playAudioFx(action) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const t = audioCtx.currentTime;
 
-      if (type === 'step') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(480, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(140, audioCtx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.95, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.08);
-      } else if (type === 'dice') {
-        for (let i = 0; i < 5; i++) {
-          setTimeout(() => {
-            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-            o.type = 'square';
-            o.frequency.setValueAtTime(220 + Math.random() * 380, audioCtx.currentTime);
-            g.gain.setValueAtTime(0.8, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 0.05);
-          }, i * 45);
-        }
-      } else if (type === 'kill') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.45);
-        gain.gain.setValueAtTime(1.0, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.45);
-      } else if (type === 'out') {
+      if (action === 'step') {
+        // Puk-puk sound
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(320, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(750, audioCtx.currentTime + 0.14);
-        gain.gain.setValueAtTime(0.95, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.14);
+        osc.frequency.setValueAtTime(350, t);
+        osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+        gain.gain.setValueAtTime(0.8, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
         osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.14);
-      } else if (type === 'home') {
-        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+        osc.start(); osc.stop(t + 0.08);
+      } else if (action === 'kill_pui') {
+        // Puiiii slide sound
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.linearRampToValueAtTime(150, t + 0.7);
+        gain.gain.setValueAtTime(0.6, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.7);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(t + 0.7);
+      } else if (action === 'out_yes') {
+        // Double punchy "Yes-Yes" chime
+        [440, 660].forEach((freq, i) => {
           setTimeout(() => {
             const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
             o.type = 'triangle'; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            g.gain.setValueAtTime(0.9, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+            g.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
             o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 0.18);
-          }, i * 110);
+            o.start(); o.stop(audioCtx.currentTime + 0.15);
+          }, i * 140);
+        });
+      } else if (action === 'home_twinkle') {
+        // Star Twinkling sound
+        [523, 659, 783, 1046, 1318, 1567].forEach((freq, idx) => {
+          setTimeout(() => {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.7, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + 0.25);
+          }, idx * 100);
         });
       }
     }
+
+    // SESSION PERSISTENCE (Page Close / Refresh handler)
+    let sessionUserId = localStorage.getItem('ludo_session_id');
+    if (!sessionUserId) {
+      sessionUserId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('ludo_session_id', sessionUserId);
+    }
+    const savedRoomCode = localStorage.getItem('ludo_current_room');
+    if (savedRoomCode) {
+      socket.emit('reconnectUser', { roomCode: savedRoomCode, sessionUserId });
+    }
+
+    let myColor = 'red';
+    let currentActiveColor = 'red';
+    let currentRoll = 0;
+    let roomPlayers = [];
+    let localTokens = {
+      red: [{-1:0},{-1:0},{-1:0},{-1:0}],
+      green: [{-1:0},{-1:0},{-1:0},{-1:0}],
+      yellow: [{-1:0},{-1:0},{-1:0},{-1:0}],
+      blue: [{-1:0},{-1:0},{-1:0},{-1:0}]
+    };
 
     const commonTrack = [
       [7,2],[7,3],[7,4],[7,5],[7,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,8],[1,9],
@@ -302,407 +249,157 @@
       [15,8],[15,7],[14,7],[13,7],[12,7],[11,7],[10,7],[9,6],[9,5],[9,4],[9,3],[9,2],[9,1],[8,1],[7,1]
     ];
 
-    const homeCorridors = {
-      red:   [[8,2],[8,3],[8,4],[8,5],[8,6]],
-      green: [[2,8],[3,8],[4,8],[5,8],[6,8]],
-      yellow:[[8,14],[8,13],[8,12],[8,11],[8,10]],
-      blue:  [[14,8],[13,8],[12,8],[11,8],[10,8]]
-    };
-
     const START_OFFSET = { red: 0, green: 13, yellow: 26, blue: 39 };
 
-    // IMAGE KE HISAB SE 4 WHITE STARS ADDED
-    const SAFE_STAR_COORDS = [
-      "3,7",   // Top white track (near Blue)
-      "7,13",  // Right white track (above Yellow)
-      "13,9",  // Bottom white track (near Green)
-      "9,3"    // Left white track (below Red)
-    ];
-
-    function getPlayerCoord(color, step) {
-      if (step < 0) return null;
-      if (step < 51) return commonTrack[(START_OFFSET[color] + step) % 52];
-      if (step <= 55) return homeCorridors[color][step - 51];
-      return 'HOME';
-    }
-
-    function initBoard() {
+    function initBoardUI() {
       const board = document.getElementById('board');
       board.innerHTML = '';
       for (let r = 1; r <= 15; r++) {
         for (let c = 1; c <= 15; c++) {
-          if ((r <= 6 && c <= 6) || (r <= 6 && c >= 10) || 
-              (r >= 10 && c <= 6) || (r >= 10 && c >= 10) || 
-              (r >= 7 && r <= 9 && c >= 7 && c <= 9)) continue;
-
+          if ((r <= 6 && c <= 6) || (r <= 6 && c >= 10) || (r >= 10 && c <= 6) || (r >= 10 && c >= 10) || (r >= 7 && r <= 9 && c >= 7 && c <= 9)) continue;
           const cell = document.createElement('div');
-          cell.className = 'cell';
-          cell.id = `cell-${r}-${c}`;
+          cell.className = 'cell'; cell.id = `cell-${r}-${c}`;
           cell.style.gridRow = r; cell.style.gridColumn = c;
 
-          // Star on 4 white cells
-          if (SAFE_STAR_COORDS.includes(`${r},${c}`)) cell.classList.add('safe-star');
-
-          // Colored tracks
-          if (r === 7 && c === 2) cell.classList.add('safe-red');
-          if (r === 8 && c >= 2 && c <= 6) cell.classList.add('path-red');
-          if (r === 2 && c === 9) cell.classList.add('safe-green');
-          if (c === 8 && r >= 2 && r <= 6) cell.classList.add('path-green');
-          if (r === 9 && c === 14) cell.classList.add('safe-yellow');
-          if (r === 8 && c >= 10 && c <= 14) cell.classList.add('path-yellow');
-          if (r === 14 && c === 7) cell.classList.add('safe-blue');
-          if (c === 8 && r >= 10 && r <= 14) cell.classList.add('path-blue');
+          // Colourful Safe Stamps
+          if (r === 9 && c === 3) cell.classList.add('stamp-safe', 'stamp-red');
+          if (r === 3 && c === 7) cell.classList.add('stamp-safe', 'stamp-green');
+          if (r === 7 && c === 13) cell.classList.add('stamp-safe', 'stamp-yellow');
+          if (r === 13 && c === 9) cell.classList.add('stamp-safe', 'stamp-blue');
 
           board.appendChild(cell);
         }
       }
 
+      // 4 Homes
       const homes = [
-        { cls: 'home-red', slot: 'r', color: 'red' },
-        { cls: 'home-green', slot: 'g', color: 'green' },
-        { cls: 'home-yellow', slot: 'y', color: 'yellow' },
-        { cls: 'home-blue', slot: 'b', color: 'blue' }
+        { id: 'red', cls: 'home-red' }, { id: 'green', cls: 'home-green' },
+        { id: 'yellow', cls: 'home-yellow' }, { id: 'blue', cls: 'home-blue' }
       ];
       homes.forEach(h => {
-        const homeDiv = document.createElement('div');
-        homeDiv.className = `home ${h.cls}`;
-        const inner = document.createElement('div');
-        inner.className = 'home-inner';
+        const d = document.createElement('div'); d.className = `home-box ${h.cls}`;
+        const inner = document.createElement('div'); inner.className = 'home-inner-white';
         for (let i = 0; i < 4; i++) {
           const slot = document.createElement('div');
-          slot.className = 'home-slot'; slot.id = `home-${h.slot}-${i}`;
+          slot.className = 'home-slot'; slot.id = `home-${h.id}-${i}`;
           inner.appendChild(slot);
         }
-        homeDiv.appendChild(inner);
-
-        const nameTag = document.createElement('div');
-        nameTag.className = 'home-name-tag';
-        nameTag.id = `nameTag-${h.color}`;
-        nameTag.innerText = h.color.toUpperCase();
-        homeDiv.appendChild(nameTag);
-
-        board.appendChild(homeDiv);
+        d.appendChild(inner); board.appendChild(d);
       });
 
       const center = document.createElement('div');
-      center.className = 'center-box'; center.id = 'centerHome';
+      center.className = 'center-home'; center.id = 'centerHome';
       board.appendChild(center);
     }
 
-    const socket = io();
-    let isHost = false;
-    let myColor = 'red';
-    let currentActiveColor = 'red';
-    let currentRoll = 0;
-    let isAnimating = false;
-    let roomPlayers = [];
-    let localTokens = {
-      red: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-      green: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-      yellow: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }],
-      blue: [{ step: -1 }, { step: -1 }, { step: -1 }, { step: -1 }]
-    };
-
-    function updateHomePlayerNames() {
-      ['red', 'green', 'yellow', 'blue'].forEach(c => {
-        const tag = document.getElementById(`nameTag-${c}`);
-        if (!tag) return;
-        const player = roomPlayers.find(p => p.color === c);
-        tag.innerText = player ? player.name : c.toUpperCase();
-      });
+    function createPawn(color) {
+      const p = document.createElement('div');
+      p.className = `pawn pawn-${color}`;
+      p.innerHTML = `<div class="pawn-circle"><div class="pawn-core"></div></div><div class="pawn-pointer"></div>`;
+      return p;
     }
 
-    function getValidTokenIndices(color, roll) {
-      const valid = [];
-      localTokens[color].forEach((t, i) => {
-        if (t.step === -1 && roll === 6) valid.push(i);
-        else if (t.step !== -1 && t.step + roll <= 56) valid.push(i);
-      });
-      return valid;
-    }
-
-    function createPawnElement(color) {
-      const tok = document.createElement('div');
-      tok.className = `token token-${color}`;
-      
-      const head = document.createElement('div');
-      head.className = 'pawn-head';
-      
-      const neck = document.createElement('div');
-      neck.className = 'pawn-neck';
-      
-      const body = document.createElement('div');
-      body.className = 'pawn-body';
-      
-      tok.appendChild(head);
-      tok.appendChild(neck);
-      tok.appendChild(body);
-      return tok;
-    }
-
-    function renderTokens() {
-      document.querySelectorAll('.token').forEach(el => el.remove());
-
-      const validIndices = (currentActiveColor === myColor && currentRoll > 0) 
-        ? getValidTokenIndices(myColor, currentRoll) 
-        : [];
-
-      roomPlayers.forEach(p => {
-        const color = p.color;
-        localTokens[color].forEach((t, i) => {
-          const tok = createPawnElement(color);
-
-          if (!isAnimating && color === myColor && validIndices.length > 1 && validIndices.includes(i)) {
-            tok.classList.add('active-turn');
-          }
-
+    function renderBoardTokens() {
+      document.querySelectorAll('.pawn').forEach(el => el.remove());
+      roomPlayers.forEach(player => {
+        const col = player.color;
+        (localTokens[col] || []).forEach((t, i) => {
+          const pawn = createPawn(col);
           if (t.step === -1) {
-            const slot = document.getElementById(`home-${color[0]}-${i}`);
-            if (slot) slot.appendChild(tok);
+            const slot = document.getElementById(`home-${col}-${i}`);
+            if (slot) slot.appendChild(pawn);
           } else if (t.step === 56) {
-            document.getElementById('centerHome').appendChild(tok);
-            tok.style.transform = 'scale(0.7)';
+            document.getElementById('centerHome').appendChild(pawn);
           } else {
-            const coords = getPlayerCoord(color, t.step);
-            if (coords) {
-              const cell = document.getElementById(`cell-${coords[0]}-${coords[1]}`);
-              if (cell) cell.appendChild(tok);
+            const coord = commonTrack[(START_OFFSET[col] + t.step) % 52];
+            if (coord) {
+              const cell = document.getElementById(`cell-${coord[0]}-${coord[1]}`);
+              if (cell) cell.appendChild(pawn);
             }
           }
 
-          tok.onclick = () => {
-            if (isAnimating) return;
-            if (color === myColor && color === currentActiveColor && currentRoll > 0) {
-              if (validIndices.includes(i)) {
-                socket.emit('moveToken', { tokenIndex: i });
-              }
+          pawn.onclick = () => {
+            if (myColor === col && currentActiveColor === myColor && currentRoll > 0) {
+              socket.emit('moveToken', { tokenIndex: i });
             }
           };
         });
       });
     }
 
-    function animateTokenMove(color, tokenIndex, fromStep, toStep, eventType, finalTokens, nextColor) {
-      isAnimating = true;
-
-      if (fromStep === -1) {
-        localTokens[color][tokenIndex].step = 0;
-        playSound('out');
-        renderTokens();
-        finishStepAnimation(finalTokens, nextColor, eventType);
-        return;
-      }
-
-      let current = fromStep;
-      const stepInterval = setInterval(() => {
-        current++;
-        localTokens[color][tokenIndex].step = current;
-        playSound('step');
-        renderTokens();
-
-        if (current >= toStep) {
-          clearInterval(stepInterval);
-          finishStepAnimation(finalTokens, nextColor, eventType);
-        }
-      }, 160);
-    }
-
-    function finishStepAnimation(finalTokens, nextColor, eventType) {
-      setTimeout(() => {
-        localTokens = finalTokens;
-        currentActiveColor = nextColor;
-        currentRoll = 0;
-        isAnimating = false;
-        document.getElementById('diceBox').innerText = '-';
-
-        if (eventType === 'kill') playSound('kill');
-        else if (eventType === 'home') playSound('home');
-
-        renderTokens();
-        updateTurnControls();
-      }, 150);
-    }
-
-    function updateTurnControls() {
-      const activeP = roomPlayers.find(p => p.color === currentActiveColor);
-      const isMyTurn = (currentActiveColor === myColor);
-
-      const rollBtn = document.getElementById('rollBtn');
-      const turnLabel = document.getElementById('turnLabel');
-
-      if (isMyTurn) {
-        turnLabel.innerHTML = `Baari: <b style="color:var(--${myColor})">AAPKI HAI!</b>`;
-        rollBtn.className = 'btn-dice my-turn';
-        rollBtn.disabled = (currentRoll !== 0 || isAnimating);
-        rollBtn.innerText = (currentRoll === 0) ? '🎲 Pasa Phenkein' : 'Goti Chalein...';
-      } else {
-        turnLabel.innerHTML = `Baari: <b style="color:var(--${currentActiveColor})">${activeP ? activeP.name : ''} (${currentActiveColor.toUpperCase()})</b>`;
-        rollBtn.className = 'btn-dice other-turn';
-        rollBtn.disabled = true;
-        rollBtn.innerText = `⏳ ${activeP ? activeP.name : 'Dost'} Ki Baari...`;
-      }
-    }
-
-    document.getElementById('btnCreateRoom').onclick = () => {
-      const name = document.getElementById('nameInput').value.trim();
-      if (!name) return alert('Kripya apna naam likhein!');
-      socket.emit('createRoom', { playerName: name });
+    // BUTTON HANDLERS
+    document.getElementById('btnCreate').onclick = () => {
+      const name = document.getElementById('nameInput').value.trim() || 'Player';
+      socket.emit('createRoom', { playerName: name, sessionUserId, vsAi: false });
     };
 
-    document.getElementById('btnJoinRoom').onclick = () => {
-      const name = document.getElementById('nameInput').value.trim();
+    document.getElementById('btnAi').onclick = () => {
+      const name = document.getElementById('nameInput').value.trim() || 'Player';
+      socket.emit('createRoom', { playerName: name, sessionUserId, vsAi: true });
+    };
+
+    document.getElementById('btnJoin').onclick = () => {
+      const name = document.getElementById('nameInput').value.trim() || 'Player';
       const code = document.getElementById('codeInput').value.trim();
-      if (!name || !code) return alert('Naam aur 4-digit code dono bharein!');
-      socket.emit('joinRoom', { playerName: name, roomCode: code });
-    };
-
-    document.getElementById('btnStartGame').onclick = () => {
-      socket.emit('startGame');
+      socket.emit('joinRoom', { playerName: name, roomCode: code, sessionUserId });
     };
 
     document.getElementById('rollBtn').onclick = () => {
-      if (!isAnimating && currentActiveColor === myColor && currentRoll === 0) {
+      if (currentActiveColor === myColor && currentRoll === 0) {
         socket.emit('rollDice');
       }
     };
 
     socket.on('roomCreated', (data) => {
-      isHost = true;
+      localStorage.setItem('ludo_current_room', data.roomCode);
+      socket.emit('startGame');
+    });
+
+    socket.on('sessionRestored', (data) => {
+      roomPlayers = data.players;
+      localTokens = data.tokens;
+      currentActiveColor = data.activeColor;
       myColor = data.myColor;
-      showLobby(data.roomCode, data.players);
-    });
-
-    socket.on('roomJoinedSuccess', (data) => {
-      isHost = false;
-      myColor = data.myColor;
-      showLobby(data.roomCode, data.players);
-    });
-
-    socket.on('lobbyUpdate', (data) => {
-      updateLobby(data.players, data.hostId);
-    });
-    // Winner rank notification
-    socket.on('playerRanked', ({ color, name, rank }) => {
-      const suffixes = ['1st 🏆', '2nd 🥈', '3rd 🥉'];
-      alert(`${name} (${color.toUpperCase()}) ne 4 gotiyan home kar li hain aur ${suffixes[rank - 1] || rank} position haasil ki!`);
-    });
-
-    // Game finish popup with Winners + Looser
-    socket.on('gameOver', ({ winners, loser }) => {
-      let resultHtml = `<h2>🎮 Khel Khatam!</h2><div style="font-size:16px; margin: 15px 0;">`;
-      
-      const ranks = ['1st Winner 🥇', '2nd Winner 🥈', '3rd Winner 🥉'];
-      winners.forEach((p, idx) => {
-        resultHtml += `<p style="color:#22c55e; font-weight:bold;">${ranks[idx]}: ${p.name} (${p.color.toUpperCase()})</p>`;
-      });
-
-      if (loser) {
-        resultHtml += `<p style="color:#ef4444; font-weight:bold; margin-top:15px; border-top:1px dashed #64748b; padding-top:10px;">❌ Looser: ${loser.name} (${loser.color.toUpperCase()})</p>`;
-      }
-      
-      resultHtml += `</div><button onclick="location.reload()" style="padding:10px 20px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">Play Again</button>`;
-
-      const modal = document.createElement('div');
-      modal.style = "position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1e293b; color:white; padding:25px; border-radius:15px; box-shadow:0 0 25px rgba(0,0,0,0.8); text-align:center; z-index:9999; min-width:280px; border:2px solid #eab308;";
-      modal.innerHTML = resultHtml;
-      document.body.appendChild(modal);
-    });
-
-    function showLobby(code, players) {
       document.getElementById('menuView').style.display = 'none';
-      document.getElementById('lobbyView').style.display = 'block';
-      document.getElementById('lobbyCode').innerText = code;
-      updateLobby(players, socket.id);
-    }
-
-    function updateLobby(players, hostId) {
-      roomPlayers = players;
-      const list = document.getElementById('playerList');
-      list.innerHTML = '';
-
-      players.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'player-item';
-        li.style.borderLeftColor = `var(--${p.color})`;
-        li.innerHTML = `<span>${p.name} ${p.id === socket.id ? '(Aap)' : ''}</span><span style="color:var(--${p.color})">${p.color.toUpperCase()}</span>`;
-        list.appendChild(li);
-      });
-
-      const startBtn = document.getElementById('btnStartGame');
-      const waitMsg = document.getElementById('waitingMsg');
-
-      if (socket.id === hostId) {
-        startBtn.style.display = 'block';
-        waitMsg.style.display = 'none';
-        startBtn.disabled = (players.length < 2);
-        startBtn.innerText = players.length < 2 ? 'Kam se kam 2 players chahiye...' : `Game Shuru Karein (${players.length} Players)`;
-      } else {
-        startBtn.style.display = 'none';
-        waitMsg.style.display = 'block';
-      }
-    }
+      document.getElementById('gameArea').style.display = 'flex';
+      initBoardUI();
+      renderBoardTokens();
+    });
 
     socket.on('gameStarted', (data) => {
       roomPlayers = data.players;
       localTokens = data.tokens;
       currentActiveColor = data.activeColor;
-      currentRoll = 0;
-
-      document.getElementById('lobbyView').style.display = 'none';
+      document.getElementById('menuView').style.display = 'none';
       document.getElementById('gameArea').style.display = 'flex';
-
-      const myBadge = document.getElementById('myBadge');
-      myBadge.innerText = `Aap: ${myColor.toUpperCase()}`;
-      myBadge.style.color = `var(--${myColor})`;
-
-      initBoard();
-      updateHomePlayerNames();
-      renderTokens();
-      updateTurnControls();
+      initBoardUI();
+      renderBoardTokens();
     });
 
-    socket.on('diceRolled', ({ roll, activeColor, canMove }) => {
-      playSound('dice');
+    socket.on('diceRolled', ({ roll, activeColor }) => {
       currentRoll = roll;
       document.getElementById('diceBox').innerText = roll;
-      renderTokens();
-      updateTurnControls();
-
-      if (activeColor === myColor && canMove) {
-        const validMoves = getValidTokenIndices(myColor, roll);
-        if (validMoves.length === 1) {
-          setTimeout(() => {
-            if (currentRoll === roll && !isAnimating) {
-              socket.emit('moveToken', { tokenIndex: validMoves[0] });
-            }
-          }, 350);
-        }
-      }
     });
 
-    socket.on('turnChanged', ({ activeColor, tokens }) => {
-      currentActiveColor = activeColor;
-      currentRoll = 0;
+    socket.on('threeSixesCancelled', ({ color }) => {
+      alert(`3 Baar '6' aane par ${color.toUpperCase()} ki baari radd kar di gayi!`);
+    });
+
+    socket.on('tokenMoved', ({ tokens, activeColor, eventType, killedInfo }) => {
       localTokens = tokens;
+      currentRoll = 0;
+      currentActiveColor = activeColor;
       document.getElementById('diceBox').innerText = '-';
-      renderTokens();
-      updateTurnControls();
-    });
 
-    socket.on('tokenMoved', ({ tokens, activeColor, eventType, tokenIndex, fromStep, toStep, moveColor }) => {
-      const color = moveColor || currentActiveColor;
-      let start = fromStep;
-      let end = toStep;
+      if (eventType === 'step') playAudioFx('step');
+      if (eventType === 'out') playAudioFx('out_yes');
+      if (eventType === 'home') playAudioFx('home_twinkle');
 
-      if (start === undefined) {
-        start = localTokens[color][tokenIndex].step;
-        end = tokens[color][tokenIndex].step;
+      if (eventType === 'kill' && killedInfo) {
+        playAudioFx('kill_pui');
       }
-
-      animateTokenMove(color, tokenIndex, start, end, eventType, tokens, activeColor);
+      renderBoardTokens();
     });
-
-    socket.on('gameError', (msg) => alert(msg));
   </script>
 </body>
 </html>
