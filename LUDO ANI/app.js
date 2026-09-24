@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH ZERO-FAIL TOKENS & DICE MOUNT
+ * LUDO ROYALE - COMPLETE ENGINE WITH ABSOLUTE TOKEN VISIBILITY & SYNC
  * ============================================================================
  */
 
@@ -247,31 +247,29 @@
     }
   }
 
-  function getElementCenterInBoard(targetEl) {
-    const boardEl = document.getElementById('ludo-board');
-    const tRect = targetEl.getBoundingClientRect();
-    const bRect = boardEl.getBoundingClientRect();
-    return {
-      top: (tRect.top - bRect.top - boardEl.clientTop) + (tRect.height / 2),
-      left: (tRect.left - bRect.left - boardEl.clientLeft) + (tRect.width / 2)
-    };
-  }
-
-  function getBaseSpotPixelCoords(color, index) {
-    const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${index}"]`);
-    if (!spot) return { top: 0, left: 0 };
-    return getElementCenterInBoard(spot);
-  }
-
-  function getCellPixelCoords(row, col) {
-    const cell = document.getElementById(`cell-${row}-${col}`);
-    if (!cell) return { top: 0, left: 0 };
-    return getElementCenterInBoard(cell);
+  // ROBUST PERCENTAGE PLACEMENT (Zero-fail Center Positioning)
+  function setTokenPosition(tokenEl, color, step, id) {
+    if (step === -1) {
+      const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
+      if (spot) {
+        spot.appendChild(tokenEl);
+        tokenEl.style.top = '50%';
+        tokenEl.style.left = '50%';
+      }
+    } else {
+      const v = getVisualCoordsForStep(color, step);
+      const cell = document.getElementById(`cell-${v.row}-${v.col}`);
+      if (cell) {
+        cell.appendChild(tokenEl);
+        tokenEl.style.top = '50%';
+        tokenEl.style.left = '50%';
+      }
+    }
   }
 
   function renderTokensLayer() {
-    const layer = document.getElementById('tokens-layer');
-    layer.innerHTML = '';
+    // Purane tokens saaf karein
+    document.querySelectorAll('.ludo-token').forEach(el => el.remove());
 
     ['red', 'green', 'yellow', 'blue'].forEach(color => {
       const pTokens = GameState.tokens[color];
@@ -284,18 +282,8 @@
         tokenEl.dataset.color = color;
         tokenEl.dataset.id = t.id;
 
-        let coords;
-        if (t.step === -1) {
-          coords = getBaseSpotPixelCoords(color, t.id);
-        } else {
-          const v = getVisualCoordsForStep(color, t.step);
-          coords = getCellPixelCoords(v.row, v.col);
-        }
-
-        tokenEl.style.top = `${coords.top}px`;
-        tokenEl.style.left = `${coords.left}px`;
+        setTokenPosition(tokenEl, color, t.step, t.id);
         tokenEl.addEventListener('click', onTokenClicked);
-        layer.appendChild(tokenEl);
       });
     });
   }
@@ -307,16 +295,9 @@
 
       pTokens.forEach(t => {
         const el = document.getElementById(`token-${color}-${t.id}`);
-        if (!el) return;
-        let coords;
-        if (t.step === -1) {
-          coords = getBaseSpotPixelCoords(color, t.id);
-        } else {
-          const v = getVisualCoordsForStep(color, t.step);
-          coords = getCellPixelCoords(v.row, v.col);
+        if (el) {
+          setTokenPosition(el, color, t.step, t.id);
         }
-        el.style.top = `${coords.top}px`;
-        el.style.left = `${coords.left}px`;
       });
     });
   }
@@ -325,12 +306,9 @@
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
     for (let s = fromStep + 1; s <= toStep; s++) {
-      await new Promise(res => setTimeout(res, 140));
+      await new Promise(res => setTimeout(res, 130));
       SoundManager.playStepPuk();
-      const v = getVisualCoordsForStep(color, s);
-      const coords = getCellPixelCoords(v.row, v.col);
-      tokenEl.style.top = `${coords.top}px`;
-      tokenEl.style.left = `${coords.left}px`;
+      setTokenPosition(tokenEl, color, s, tokenId);
     }
   }
 
@@ -338,16 +316,11 @@
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
     for (let s = fromStep - 1; s >= 0; s--) {
-      await new Promise(res => setTimeout(res, 55));
-      const v = getVisualCoordsForStep(color, s);
-      const coords = getCellPixelCoords(v.row, v.col);
-      tokenEl.style.top = `${coords.top}px`;
-      tokenEl.style.left = `${coords.left}px`;
+      await new Promise(res => setTimeout(res, 50));
+      setTokenPosition(tokenEl, color, s, tokenId);
     }
-    await new Promise(res => setTimeout(res, 80));
-    const baseCoords = getBaseSpotPixelCoords(color, tokenId);
-    tokenEl.style.top = `${baseCoords.top}px`;
-    tokenEl.style.left = `${baseCoords.left}px`;
+    await new Promise(res => setTimeout(res, 70));
+    setTokenPosition(tokenEl, color, -1, tokenId);
   }
 
   function broadcastOnlineAction(action) {
@@ -383,7 +356,7 @@
     const diceEl = document.getElementById('dice-3d-box');
     diceEl.className = 'dice-cube rolling-3d';
 
-    await new Promise(res => setTimeout(res, 850));
+    await new Promise(res => setTimeout(res, 800));
 
     diceEl.className = `dice-cube show-${finalRoll}`;
     GameState.diceValue = finalRoll;
@@ -394,7 +367,7 @@
 
     if (GAME_RULES.THREE_SIX_PENALTY && GameState.consecutiveSixes === 3) {
       showTurnNotification("3 Consecutive 6s! Turn Cancelled");
-      await new Promise(res => setTimeout(res, 900));
+      await new Promise(res => setTimeout(res, 850));
       GameState.advanceTurn();
       if (GameState.isOnline) broadcastOnlineAction({ type: 'TURN_PASS' });
       syncUIWithTurn();
@@ -412,7 +385,7 @@
       syncUIWithTurn();
     } else if (legalTokenIds.length === 1) {
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
-      await new Promise(res => setTimeout(res, 450));
+      await new Promise(res => setTimeout(res, 400));
       clearTokenHighlights();
       executeMove(currentPlayer.color, legalTokenIds[0]);
     } else {
@@ -451,12 +424,9 @@
     if (fromStep === -1 && roll === 6) {
       token.step = 0;
       SoundManager.playReleaseYes();
-      const v = getVisualCoordsForStep(color, 0);
-      const coords = getCellPixelCoords(v.row, v.col);
       const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
-      tokenEl.style.top = `${coords.top}px`;
-      tokenEl.style.left = `${coords.left}px`;
-      await new Promise(res => setTimeout(res, 280));
+      setTokenPosition(tokenEl, color, 0, tokenId);
+      await new Promise(res => setTimeout(res, 250));
     } else {
       const toStep = fromStep + roll;
       await animateTokenSteps(color, tokenId, fromStep, toStep);
@@ -542,11 +512,11 @@
     nameEl.style.color = `var(--ludo-${p.color})`;
 
     document.getElementById('footer-player-title').innerText = p.name;
-    document.getElementById('footer-player-status').innerText = (GameState.isOnline && p.color !== myColor) ? 'WAITING FOR OPPONENT...' : 'ROLL THE DICE';
     document.getElementById('badge-pin-icon').className = `pin-sample token-${p.color}`;
 
-    const canRoll = !GameState.isOnline || (p.color === myColor);
-    setDiceInteractionEnabled(canRoll);
+    const isMyBaari = !GameState.isOnline || (p.color === myColor);
+    document.getElementById('footer-player-status').innerText = isMyBaari ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
+    setDiceInteractionEnabled(isMyBaari);
   }
 
   function setDiceInteractionEnabled(enable) {
@@ -607,15 +577,11 @@
     document.getElementById('game-screen').style.display = 'flex';
 
     buildBoardGrid();
-
-    // FORCE FRAME TO ENSURE TOKENS MOUNT EXACTLY IN SLOTS
-    setTimeout(() => {
-      renderTokensLayer();
-      syncUIWithTurn();
-    }, 100);
+    renderTokensLayer();
+    syncUIWithTurn();
   }
 
-  // REALTIME STATE POLLING (350MS RESILIENT SYNC)
+  // REALTIME STATE POLLING (FAST RELAY)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -656,7 +622,7 @@
                 });
               }
             });
-            setTimeout(updateVisualTokensPositions, 150);
+            updateVisualTokensPositions();
           }
         }
 
