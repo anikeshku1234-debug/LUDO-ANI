@@ -1,15 +1,18 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH ABSOLUTE TOKEN VISIBILITY & SYNC
+ * LUDO ROYALE - PURE INSTANT SYNC (NO STALE MEMORY LOCKS)
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
+  // Purane atke huye rooms ko hamesha ke liye clear karein
+  localStorage.removeItem('ludo_active_room');
+
   let currentUser = JSON.parse(localStorage.getItem('ludo_user') || 'null');
-  let currentRoomCode = localStorage.getItem('ludo_active_room') || null;
-  let myColor = localStorage.getItem('ludo_my_color') || 'red';
+  let currentRoomCode = null;
+  let myColor = 'red';
   let isBoardLaunched = false;
   let pollingInterval = null;
   let processedActionIds = new Set();
@@ -247,7 +250,6 @@
     }
   }
 
-  // ROBUST PERCENTAGE PLACEMENT (Zero-fail Center Positioning)
   function setTokenPosition(tokenEl, color, step, id) {
     if (step === -1) {
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
@@ -268,7 +270,6 @@
   }
 
   function renderTokensLayer() {
-    // Purane tokens saaf karein
     document.querySelectorAll('.ludo-token').forEach(el => el.remove());
 
     ['red', 'green', 'yellow', 'blue'].forEach(color => {
@@ -581,7 +582,7 @@
     syncUIWithTurn();
   }
 
-  // REALTIME STATE POLLING (FAST RELAY)
+  // REALTIME STATE POLLING (350MS RESILIENT SYNC)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -832,8 +833,6 @@
         if (data.success) {
           currentRoomCode = data.roomCode;
           myColor = 'red';
-          localStorage.setItem('ludo_active_room', currentRoomCode);
-          localStorage.setItem('ludo_my_color', 'red');
           document.getElementById('display-room-code').innerText = data.roomCode;
           document.getElementById('created-code-box').style.display = 'block';
           btn.innerText = 'Waiting for Friend to Join...';
@@ -878,8 +877,6 @@
 
         currentRoomCode = code;
         myColor = data.color || 'yellow';
-        localStorage.setItem('ludo_active_room', currentRoomCode);
-        localStorage.setItem('ludo_my_color', myColor);
         btn.innerText = '✓ Connected! Waiting for Host to Start...';
         startStatePolling(code);
       } catch (err) {
@@ -927,7 +924,6 @@
       document.getElementById('game-screen').style.display = 'none';
       document.getElementById('lobby-screen').style.display = 'flex';
       isBoardLaunched = false;
-      localStorage.removeItem('ludo_active_room');
       if (pollingInterval) clearInterval(pollingInterval);
     });
 
@@ -948,10 +944,6 @@
     injectAuthModal();
     setupEventListeners();
     updateAuthHeaderUI();
-
-    if (currentRoomCode) {
-      startStatePolling(currentRoomCode);
-    }
   });
 
 })();
