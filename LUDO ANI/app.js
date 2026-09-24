@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * LUDO ROYALE - PURE INSTANT SYNC (NO STALE MEMORY LOCKS)
+ * LUDO ROYALE - STABLE SINGLE ROOM HOST & JOIN CLIENT ENGINE
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Purane atke huye rooms ko hamesha ke liye clear karein
   localStorage.removeItem('ludo_active_room');
 
   let currentUser = JSON.parse(localStorage.getItem('ludo_user') || 'null');
@@ -250,6 +249,7 @@
     }
   }
 
+  // DIRECT IN-ELEMENT PLACEMENT
   function setTokenPosition(tokenEl, color, step, id) {
     if (step === -1) {
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
@@ -582,7 +582,7 @@
     syncUIWithTurn();
   }
 
-  // REALTIME STATE POLLING (350MS RESILIENT SYNC)
+  // REALTIME STATE POLLING (FAST SYNC)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -599,8 +599,12 @@
             btn.disabled = false;
             btn.classList.remove('btn-secondary');
             btn.classList.add('btn-primary');
-            btn.onclick = () => {
+            // SINGLE ATTACH TO PREVENT RE-CREATING ROOM
+            btn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
               btn.disabled = true;
+              btn.innerText = 'Starting...';
               fetch('/api/start-game', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -814,14 +818,14 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // CREATE ROOM
-    document.getElementById('btn-create-room').addEventListener('click', async () => {
+    // CREATE ROOM HANDLER
+    const btnCreateRoom = document.getElementById('btn-create-room');
+    btnCreateRoom.onclick = async () => {
       SoundManager.init();
-      const btn = document.getElementById('btn-create-room');
       const name = (currentUser ? currentUser.name : document.getElementById('host-player-name').value.trim()) || 'Host Player';
       const email = currentUser ? currentUser.email : '';
-      btn.innerText = 'Creating Room...';
-      btn.disabled = true;
+      btnCreateRoom.innerText = 'Creating Room...';
+      btnCreateRoom.disabled = true;
 
       try {
         const res = await fetch('/api/create-room', {
@@ -835,31 +839,31 @@
           myColor = 'red';
           document.getElementById('display-room-code').innerText = data.roomCode;
           document.getElementById('created-code-box').style.display = 'block';
-          btn.innerText = 'Waiting for Friend to Join...';
+          btnCreateRoom.innerText = 'Waiting for Friend to Join...';
           startStatePolling(data.roomCode);
         }
       } catch (err) {
         alert('Server se connect nahi ho paya.');
-        btn.innerText = 'CREATE ROOM';
-        btn.disabled = false;
+        btnCreateRoom.innerText = 'CREATE ROOM';
+        btnCreateRoom.disabled = false;
       }
-    });
+    };
 
-    // JOIN ROOM
-    document.getElementById('btn-join-room').addEventListener('click', async () => {
+    // JOIN ROOM HANDLER
+    const btnJoinRoom = document.getElementById('btn-join-room');
+    btnJoinRoom.onclick = async () => {
       SoundManager.init();
-      const btn = document.getElementById('btn-join-room');
       const name = (currentUser ? currentUser.name : document.getElementById('join-player-name').value.trim()) || 'Guest Player';
       const email = currentUser ? currentUser.email : '';
       const rawInput = document.getElementById('join-room-code').value || '';
       const code = rawInput.toString().trim().replace(/\s+/g, '');
 
       if (!code || code.length !== 4) {
-        return alert('Kripya sahi 4-digit room code daalein (Jaise: 4821)!');
+        return alert('Kripya sahi 4-digit room code daalein!');
       }
 
-      btn.innerText = 'Connecting...';
-      btn.disabled = true;
+      btnJoinRoom.innerText = 'Connecting...';
+      btnJoinRoom.disabled = true;
 
       try {
         const res = await fetch('/api/join-room', {
@@ -870,21 +874,21 @@
         const data = await res.json();
         if (!data.success) {
           alert(data.message);
-          btn.innerText = 'JOIN ROOM';
-          btn.disabled = false;
+          btnJoinRoom.innerText = 'JOIN ROOM';
+          btnJoinRoom.disabled = false;
           return;
         }
 
         currentRoomCode = code;
         myColor = data.color || 'yellow';
-        btn.innerText = '✓ Connected! Waiting for Host to Start...';
+        btnJoinRoom.innerText = '✓ Joined! Wait for Host...';
         startStatePolling(code);
       } catch (err) {
         alert('Server se connect nahi ho paya.');
-        btn.innerText = 'JOIN ROOM';
-        btn.disabled = false;
+        btnJoinRoom.innerText = 'JOIN ROOM';
+        btnJoinRoom.disabled = false;
       }
-    });
+    };
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
 
