@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - CHHOTA-BADA PULSING HIGHLIGHT CLIENT ENGINE
+ * LUDO ROYALE - CROSS-NETWORK STUN PEER ENGINE (LAPTOP + MOBILE INSTANT CONNECT)
  * ============================================================================
  */
 
@@ -12,6 +12,17 @@
   let isHost = false;
   let myColor = 'red';
   let onlinePlayers = [];
+
+  // Google Public STUN Configuration (Fixes Cross-Network Laptop + Mobile 5G)
+  const PEER_CONFIG = {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    }
+  };
 
   const SoundManager = {
     ctx: null,
@@ -405,7 +416,6 @@
       GameState.advanceTurn();
       syncUIWithTurn();
     } else if (legalTokenIds.length === 1) {
-      // Highlight the single movable token briefly so user sees which token is moving
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
       await new Promise(res => setTimeout(res, 450));
       clearTokenHighlights();
@@ -415,7 +425,6 @@
         sendP2PMessage({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
       }
     } else {
-      // Multiple options available: Start the chhota-bada pulsing animation!
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
       showTurnNotification("Select a Token to Move");
     }
@@ -611,11 +620,13 @@
     }
   }
 
+  // CROSS-NETWORK HOST SETUP (STUN ENABLED)
   function setupHostP2P(hostName) {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    const peerId = `ludo-room-${code}`;
+    const peerId = `ludoroyale-room-${code}`;
     
-    peer = new Peer(peerId);
+    if (peer) peer.destroy();
+    peer = new Peer(peerId, PEER_CONFIG);
     
     peer.on('open', () => {
       document.getElementById('display-room-code').innerText = code;
@@ -654,15 +665,18 @@
     });
 
     peer.on('error', (err) => {
-      alert('Network issue. Kripya Create Room dobara dabayein!');
+      console.warn('Host Peer error:', err);
+      alert('Room connect hone me dikkat aayi. Create Room dobara dabayein!');
       document.getElementById('btn-create-room').innerText = 'CREATE ROOM';
       document.getElementById('btn-create-room').disabled = false;
     });
   }
 
+  // CROSS-NETWORK GUEST SETUP (STUN ENABLED)
   function setupGuestP2P(guestName, code) {
-    peer = new Peer();
-    const targetPeerId = `ludo-room-${code}`;
+    if (peer) peer.destroy();
+    peer = new Peer(PEER_CONFIG);
+    const targetPeerId = `ludoroyale-room-${code}`;
 
     peer.on('open', () => {
       const conn = peer.connect(targetPeerId, { reliable: true });
@@ -678,11 +692,23 @@
         });
       });
 
-      peer.on('error', () => {
-        alert(`Room (${code}) nahi mila! Kripya sahi 4-digit code dalein.`);
-        document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
-        document.getElementById('btn-join-room').disabled = false;
-      });
+      // 8 second timeout agar room na mile
+      const timeout = setTimeout(() => {
+        if (!conn.open) {
+          alert(`Room (${code}) nahi mila! Kripya code check karein.`);
+          document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
+          document.getElementById('btn-join-room').disabled = false;
+        }
+      }, 8000);
+
+      conn.on('open', () => clearTimeout(timeout));
+    });
+
+    peer.on('error', (err) => {
+      console.warn('Guest Peer error:', err);
+      alert(`Room (${code}) nahi mila! Kripya sahi 4-digit code dalein.`);
+      document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
+      document.getElementById('btn-join-room').disabled = false;
     });
   }
 
@@ -744,6 +770,7 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
+    // Host Action
     document.getElementById('btn-create-room').addEventListener('click', () => {
       SoundManager.init();
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
@@ -751,6 +778,7 @@
       setupHostP2P(name);
     });
 
+    // Join Action
     document.getElementById('btn-join-room').addEventListener('click', () => {
       SoundManager.init();
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
