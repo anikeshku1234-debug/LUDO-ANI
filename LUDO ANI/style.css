@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LUDO ROYALE - PERFECT CENTERED ROUND (GOL) 3D TOKENS
+   LUDO ROYALE - CHHOTA-BADA PULSING 3D TOKENS ON TURN
    ========================================================================== */
 
 :root {
@@ -459,14 +459,14 @@ body {
 }
 
 /* ==========================================================================
-   PERFECT CIRCULAR (GOL) 3D COIN GOTI
+   ROUND (GOL) 3D TOKENS
    ========================================================================== */
 .ludo-token {
   position: absolute;
   width: 22px;
   height: 22px;
   border-radius: 50% !important;
-  transform: translate(-50%, -50%) !important;
+  transform: translate(-50%, -50%);
   border: 2.5px solid #ffffff;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.65), inset 0 2px 3px rgba(255, 255, 255, 0.6);
   cursor: pointer;
@@ -475,7 +475,6 @@ body {
   z-index: 25;
 }
 
-/* Shiny Inner 3D Dot */
 .ludo-token::after {
   content: '';
   position: absolute;
@@ -490,7 +489,7 @@ body {
 }
 
 .ludo-token:active {
-  transform: translate(-50%, -50%) scale(1.18) !important;
+  transform: translate(-50%, -50%) scale(1.18);
 }
 
 .token-red    { background: radial-gradient(circle at 35% 30%, #ff6b6b, #c9182b 75%, #7f1d1d); }
@@ -498,19 +497,23 @@ body {
 .token-yellow { background: radial-gradient(circle at 35% 30%, #fef08a, #eab308 75%, #a16207); }
 .token-blue   { background: radial-gradient(circle at 35% 30%, #60a5fa, #0084ff 75%, #1e3a8a); }
 
+/* ==========================================================================
+   CHHOTA-BADA PULSING ANIMATION (FOR ACTIVE TURN TOKENS)
+   ========================================================================== */
 .token-selectable {
-  animation: pulseRoundSelectable 0.65s infinite alternate;
+  animation: chhotaBadaPulse 0.55s infinite alternate ease-in-out !important;
   border-color: #fef08a !important;
-  z-index: 35 !important;
+  z-index: 50 !important;
 }
-@keyframes pulseRoundSelectable {
-  from {
-    transform: translate(-50%, -50%) scale(1) !important;
-    filter: drop-shadow(0 0 4px #fde047);
+
+@keyframes chhotaBadaPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.92);
+    filter: drop-shadow(0 0 3px #fde047);
   }
-  to {
-    transform: translate(-50%, -50%) scale(1.24) !important;
-    filter: drop-shadow(0 0 9px #facc15);
+  100% {
+    transform: translate(-50%, -50%) scale(1.42);
+    filter: drop-shadow(0 0 12px #facc15) brightness(1.2);
   }
 }
 
