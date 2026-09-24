@@ -1,19 +1,13 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: { origin: "*" },
-  transports: ['polling', 'websocket']
-});
-
 const PORT = process.env.PORT || 10000;
 
+app.use(express.json());
 app.use(express.static(__dirname));
 
 function sendFileSafe(filename, mimeType, res) {
@@ -35,143 +29,93 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
-// ACTIVE ROOMS IN-MEMORY STORE
+// IN-MEMORY REAL-TIME ROOM ENGINE
 const rooms = new Map();
-const COLOR_ORDER = ['red', 'yellow', 'green', 'blue'];
 
-io.on('connection', (socket) => {
-  console.log('[Socket Connected]:', socket.id);
+// 1. CREATE 4-DIGIT ROOM
+app.post('/api/create-room', (req, res) => {
+  const hostName = (req.body.hostName || 'Host Player').trim();
+  let code;
+  do {
+    code = Math.floor(1000 + Math.random() * 9000).toString();
+  } while (rooms.has(code));
 
-  // 1. CREATE ROOM (Exact 4-Digit Integer: 1000 - 9999)
-  socket.on('createRoom', ({ hostName }) => {
-    let code;
-    do {
-      code = Math.floor(1000 + Math.random() * 9000).toString();
-    } while (rooms.has(code));
+  const room = {
+    code,
+    players: [{ id: 'host', name: hostName, color: 'red' }],
+    gameStarted: false,
+    actions: [],
+    lastUpdated: Date.now()
+  };
 
-    const host = (hostName || 'Host Player').trim();
-    const newRoom = {
-      roomCode: code,
-      hostId: socket.id,
-      gameStarted: false,
-      players: [{ id: socket.id, name: host, color: 'red', isHost: true }]
-    };
+  rooms.set(code, room);
+  res.json({ success: true, roomCode: code, color: 'red' });
+});
 
-    rooms.set(code, newRoom);
-    socket.join(code);
-    socket.roomCode = code;
-    socket.playerColor = 'red';
+// 2. JOIN 4-DIGIT ROOM
+app.post('/api/join-room', (req, res) => {
+  const rawCode = (req.body.roomCode || '').toString().trim().replace(/\s+/g, '');
+  const guestName = (req.body.playerName || 'Guest Player').trim();
 
-    socket.emit('roomCreatedSuccess', {
-      roomCode: code,
-      players: newRoom.players,
-      myColor: 'red',
-      isHost: true
-    });
-    console.log(`[Room Created]: ${code} by ${host}`);
-  });
+  const room = rooms.get(rawCode);
+  if (!room) {
+    return res.json({ success: false, message: `Room (${rawCode}) nahi mila! Kripya code check karein.` });
+  }
+  if (room.gameStarted) {
+    return res.json({ success: false, message: 'Game pehle hi shuru ho chuka hai!' });
+  }
 
-  // 2. JOIN ROOM (4-Digit Integer Match)
-  socket.on('joinRoom', ({ playerName, roomCode }) => {
-    const rawCode = (roomCode || '').toString().trim().replace(/\s+/g, '');
-    console.log(`[Join Attempt]: Code ${rawCode}`);
+  // Agar guest pehle se na juda ho
+  if (!room.players.some(p => p.id === 'guest')) {
+    room.players.push({ id: 'guest', name: guestName, color: 'yellow' });
+  }
+  room.lastUpdated = Date.now();
 
-    const room = rooms.get(rawCode);
+  res.json({ success: true, roomCode: rawCode, color: 'yellow', players: room.players });
+});
 
-    if (!room) {
-      socket.emit('roomError', `Galat Room Code (${rawCode})! Kripya 4-digit code check karein.`);
-      return;
-    }
-    if (room.gameStarted) {
-      socket.emit('roomError', 'Game pehle hi start ho chuka hai!');
-      return;
-    }
-    if (room.players.length >= 4) {
-      socket.emit('roomError', 'Room pehle se full hai (Max 4 Players)!');
-      return;
-    }
+// 3. START GAME
+app.post('/api/start-game', (req, res) => {
+  const code = (req.body.roomCode || '').toString().trim();
+  const room = rooms.get(code);
+  if (!room) return res.json({ success: false });
 
-    const assignedColor = COLOR_ORDER[room.players.length] || 'yellow';
-    const guest = (playerName || `Player ${room.players.length + 1}`).trim();
+  room.gameStarted = true;
+  room.actions.push({ type: 'GAME_STARTED', players: room.players, timestamp: Date.now() });
+  room.lastUpdated = Date.now();
+  res.json({ success: true });
+});
 
-    room.players.push({
-      id: socket.id,
-      name: guest,
-      color: assignedColor,
-      isHost: false
-    });
+// 4. SEND ACTION (Dice Roll / Token Move)
+app.post('/api/send-action', (req, res) => {
+  const code = (req.body.roomCode || '').toString().trim();
+  const action = req.body.action;
+  const room = rooms.get(code);
+  if (!room) return res.json({ success: false });
 
-    socket.join(rawCode);
-    socket.roomCode = rawCode;
-    socket.playerColor = assignedColor;
+  action.timestamp = Date.now();
+  action.id = Math.random().toString(36).substring(7);
+  room.actions.push(action);
+  if (room.actions.length > 50) room.actions.shift(); // clean old
+  room.lastUpdated = Date.now();
 
-    socket.emit('roomJoinedSuccess', {
-      roomCode: rawCode,
-      players: room.players,
-      myColor: assignedColor,
-      isHost: false
-    });
+  res.json({ success: true });
+});
 
-    io.to(rawCode).emit('lobbyPlayerUpdate', {
-      players: room.players,
-      hostId: room.hostId
-    });
-    console.log(`[Player Joined]: ${guest} in Room ${rawCode}`);
-  });
+// 5. POLL STATE (Instant Cross-Device Sync)
+app.get('/api/poll/:roomCode', (req, res) => {
+  const code = (req.params.roomCode || '').toString().trim();
+  const room = rooms.get(code);
+  if (!room) return res.json({ success: false });
 
-  // 3. START ONLINE GAME (Host Triggers)
-  socket.on('startOnlineGame', () => {
-    const code = socket.roomCode;
-    if (!code || !rooms.has(code)) return;
-    const room = rooms.get(code);
-
-    if (room.hostId !== socket.id) {
-      socket.emit('roomError', 'Sirf Host match start kar sakta hai!');
-      return;
-    }
-    if (room.players.length < 2) {
-      socket.emit('roomError', 'Kam se kam 2 devices judne chahiye!');
-      return;
-    }
-
-    room.gameStarted = true;
-    io.to(code).emit('onlineGameStarted', {
-      players: room.players,
-      activeColor: 'red'
-    });
-    console.log(`[Game Started]: In Room ${code}`);
-  });
-
-  // 4. REALTIME SYNC (Dice Roll & Token Movement)
-  socket.on('broadcastGameAction', (actionData) => {
-    if (socket.roomCode) {
-      socket.to(socket.roomCode).emit('receiveGameAction', actionData);
-    }
-  });
-
-  // 5. DISCONNECT
-  socket.on('disconnect', () => {
-    const code = socket.roomCode;
-    if (code && rooms.has(code)) {
-      const room = rooms.get(code);
-      room.players = room.players.filter(p => p.id !== socket.id);
-      if (room.players.length === 0) {
-        rooms.delete(code);
-        console.log(`[Room Cleaned]: ${code}`);
-      } else {
-        if (room.hostId === socket.id) {
-          room.hostId = room.players[0].id;
-          room.players[0].isHost = true;
-        }
-        io.to(code).emit('lobbyPlayerUpdate', {
-          players: room.players,
-          hostId: room.hostId
-        });
-      }
-    }
+  res.json({
+    success: true,
+    players: room.players,
+    gameStarted: room.gameStarted,
+    actions: room.actions
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo Real-time Server active on port ${PORT}`);
+  console.log(`Ludo HTTP-Relay Engine running on port ${PORT}`);
 });
