@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - FULL AUTH & STATE-SYNCHRONIZED CLIENT ENGINE
+ * LUDO ROYALE - COMPLETE ENGINE WITH STEP-BY-STEP PUK & REVERSE REWIND ANIMATION
  * ============================================================================
  */
 
@@ -16,6 +16,7 @@
   let pollingInterval = null;
   let lastServerVersion = 0;
 
+  // 1. SOUND SYNTHESIZER (Pure Web Audio API)
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -47,11 +48,11 @@
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(70, now + 0.06);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.07);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.06);
+      osc.start(now); osc.stop(now + 0.07);
     },
     playReleaseYes() {
       if (!this.enabled || !this.ctx) return;
@@ -74,14 +75,29 @@
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(950, now);
-      osc.frequency.exponentialRampToValueAtTime(110, now + 0.45);
-      gain.gain.setValueAtTime(0.28, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.48);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.48);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.45);
+      osc.start(now); osc.stop(now + 0.48);
+    },
+    playVictory() {
+      if (!this.enabled || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      [440, 554.37, 659.25, 880].forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.12); osc.stop(now + idx * 0.12 + 0.4);
+      });
     }
   };
 
+  // 2. COORDINATES & TRACK SPECS
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -115,6 +131,7 @@
     }
   }
 
+  // 3. ENGINE STATE
   const GameState = {
     isOnline: false,
     players: [],
@@ -188,6 +205,7 @@
     }
   }
 
+  // DOM Mount Placement
   function mountTokenToTarget(tokenEl, color, step, id) {
     if (step === -1) {
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
@@ -226,6 +244,7 @@
   }
 
   function updateTokensView() {
+    if (GameState.isAnimating) return; // Animation ke dauran view override na ho
     ['red', 'yellow'].forEach(color => {
       const steps = GameState.tokens[color];
       steps.forEach((step, i) => {
@@ -243,6 +262,40 @@
     });
   }
 
+  // 4. ANIMATION HELPERS (Step puk & Reverse Rewind)
+  async function animateForwardSteps(color, tokenId, fromStep, toStep) {
+    const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
+    if (!tokenEl) return;
+
+    if (fromStep === -1) {
+      SoundManager.playReleaseYes();
+      mountTokenToTarget(tokenEl, color, 0, tokenId);
+      await new Promise(res => setTimeout(res, 260));
+      return;
+    }
+
+    for (let s = fromStep + 1; s <= toStep; s++) {
+      await new Promise(res => setTimeout(res, 140));
+      SoundManager.playStepPuk();
+      mountTokenToTarget(tokenEl, color, s, tokenId);
+    }
+    await new Promise(res => setTimeout(res, 100));
+  }
+
+  async function animateReverseRewind(color, tokenId, fromStep) {
+    const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
+    if (!tokenEl) return;
+
+    SoundManager.playCaptureSuuu();
+    for (let s = fromStep - 1; s >= 0; s--) {
+      await new Promise(res => setTimeout(res, 60));
+      mountTokenToTarget(tokenEl, color, s, tokenId);
+    }
+    await new Promise(res => setTimeout(res, 80));
+    mountTokenToTarget(tokenEl, color, -1, tokenId);
+  }
+
+  // 5. GAMEPLAY ACTIONS
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
     if (GameState.isOnline && GameState.activeColor !== myColor) return;
@@ -326,13 +379,14 @@
     let grantBonus = (roll === 6);
     let cutRival = false;
     let cutTokenId = -1;
+    let cutFromStep = -1;
 
     if (fromStep === -1 && roll === 6) {
       toStep = 0;
-      SoundManager.playReleaseYes();
+      await animateForwardSteps(color, tokenId, fromStep, toStep);
     } else {
       toStep = fromStep + roll;
-      SoundManager.playStepPuk();
+      await animateForwardSteps(color, tokenId, fromStep, toStep);
 
       if (toStep === 56) {
         grantBonus = true;
@@ -340,18 +394,21 @@
         const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
         if (!SAFE_CELL_INDICES.includes(myGlobal)) {
           const rival = (color === 'red') ? 'yellow' : 'red';
-          GameState.tokens[rival].forEach((rStep, rId) => {
+          for (let rId = 0; rId < 4; rId++) {
+            const rStep = GameState.tokens[rival][rId];
             if (rStep >= 0 && rStep < 51) {
               const rivalGlobal = (COLOR_SPECS[rival].offset + rStep) % 52;
               if (rivalGlobal === myGlobal) {
-                SoundManager.playCaptureSuuu();
                 grantBonus = true;
                 cutRival = true;
                 cutTokenId = rId;
+                cutFromStep = rStep;
                 GameState.tokens[rival][rId] = -1;
+                await animateReverseRewind(rival, rId, rStep);
+                break;
               }
             }
-          });
+          }
         }
       }
     }
@@ -416,7 +473,7 @@
 
     const isMyTurn = !GameState.isOnline || (curColor === myColor);
     document.getElementById('footer-player-status').innerText = isMyTurn ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
-    setDiceInteractionEnabled(isMyTurn && !GameState.diceValue);
+    setDiceInteractionEnabled(isMyTurn && !GameState.diceValue && !GameState.isAnimating);
   }
 
   function setDiceInteractionEnabled(enable) {
@@ -451,7 +508,7 @@
     syncUIWithTurn();
   }
 
-  // STATE POLLING (SINGLE TRUTH REPLICATION)
+  // 6. REALTIME STATE REPLICATION
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -490,17 +547,33 @@
         if (isBoardLaunched && data.version !== lastServerVersion) {
           lastServerVersion = data.version;
 
-          // Replicate exact token steps
-          if (data.tokens) {
-            GameState.tokens.red = [...data.tokens.red];
-            GameState.tokens.yellow = [...data.tokens.yellow];
+          // Animate opponent move if changed
+          if (data.tokens && !GameState.isAnimating) {
+            ['red', 'yellow'].forEach(c => {
+              if (c !== myColor) {
+                data.tokens[c].forEach(async (newStep, i) => {
+                  const oldStep = GameState.tokens[c][i];
+                  if (newStep !== oldStep) {
+                    if (newStep === -1 && oldStep >= 0) {
+                      // Opponent goti kategi toh reverse rewind chalega
+                      await animateReverseRewind(c, i, oldStep);
+                    } else if (newStep > oldStep || (oldStep === -1 && newStep === 0)) {
+                      // Opponent ki goti puk puk karte hue badhegi
+                      await animateForwardSteps(c, i, oldStep, newStep);
+                    }
+                    GameState.tokens[c][i] = newStep;
+                    updateTokensView();
+                  }
+                });
+              } else {
+                GameState.tokens[c] = [...data.tokens[c]];
+              }
+            });
             updateTokensView();
           }
 
-          // Replicate current active color
           GameState.activeColor = data.activeColor;
 
-          // Replicate remote dice value without local ghost roll
           if (data.diceValue) {
             GameState.diceValue = data.diceValue;
             const diceEl = document.getElementById('dice-3d-box');
@@ -547,7 +620,7 @@
     launchGameBoard(configuredPlayers, false);
   }
 
-  // USER AUTHENTICATION UI
+  // 7. USER AUTHENTICATION UI
   function updateAuthHeaderUI() {
     let authBox = document.getElementById('user-profile-badge');
     if (!authBox) {
@@ -647,6 +720,7 @@
     };
   }
 
+  // 8. CONTROLS INITIALIZATION
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
