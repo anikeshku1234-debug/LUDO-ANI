@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - TRUE MULTIPLAYER REALTIME SYNC (MOBILE & LAPTOP GUARANTEED)
+ * LUDO ROYALE - COMPLETE CLIENT ENGINE WITH ZERO-FAIL TOKENS & DICE MOUNT
  * ============================================================================
  */
 
@@ -356,7 +356,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomCode: currentRoomCode, action: action })
-    }).catch(e => console.warn('Action sync error:', e));
+    }).catch(e => console.warn('Sync error:', e));
   }
 
   async function onRollDiceTriggered() {
@@ -370,7 +370,7 @@
     applyDiceRoll(finalRoll);
 
     if (GameState.isOnline) {
-      broadcastOnlineAction({ type: 'DICE_ROLLED', roll: finalRoll, playerColor: currentPlayer.color });
+      broadcastOnlineAction({ type: 'DICE_ROLLED', roll: finalRoll, color: currentPlayer.color });
     }
   }
 
@@ -607,8 +607,12 @@
     document.getElementById('game-screen').style.display = 'flex';
 
     buildBoardGrid();
-    renderTokensLayer();
-    syncUIWithTurn();
+
+    // FORCE FRAME TO ENSURE TOKENS MOUNT EXACTLY IN SLOTS
+    setTimeout(() => {
+      renderTokensLayer();
+      syncUIWithTurn();
+    }, 100);
   }
 
   // REALTIME STATE POLLING (350MS RESILIENT SYNC)
@@ -620,7 +624,7 @@
         const data = await res.json();
         if (!data.success) return;
 
-        // Lobby Sync
+        // Lobby Sync (Host activates Start Game)
         if (!isBoardLaunched && !data.gameStarted) {
           if (data.players.length >= 2 && myColor === 'red') {
             const btn = document.getElementById('btn-create-room');
@@ -652,7 +656,7 @@
                 });
               }
             });
-            updateVisualTokensPositions();
+            setTimeout(updateVisualTokensPositions, 150);
           }
         }
 
