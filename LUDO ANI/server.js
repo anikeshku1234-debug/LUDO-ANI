@@ -29,9 +29,36 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
+const usersDB = new Map();
 const rooms = new Map();
 
-// 1. CREATE 4-DIGIT ROOM
+// 1. AUTH SIGNUP
+app.post('/api/auth/signup', (req, res) => {
+  const { name, email, password } = req.body;
+  const cleanEmail = (email || '').toLowerCase().trim();
+  if (!cleanEmail || !password || !name) {
+    return res.json({ success: false, message: 'Sabhi fields bharna zaroori hai!' });
+  }
+  if (usersDB.has(cleanEmail)) {
+    return res.json({ success: false, message: 'Email pehle se registered hai! Login karein.' });
+  }
+  const user = { name: name.trim(), email: cleanEmail, password: password.trim() };
+  usersDB.set(cleanEmail, user);
+  res.json({ success: true, user: { name: user.name, email: user.email } });
+});
+
+// 2. AUTH LOGIN
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const user = usersDB.get(cleanEmail);
+  if (!user || user.password !== (password || '').trim()) {
+    return res.json({ success: false, message: 'Galat Email ya Password!' });
+  }
+  res.json({ success: true, user: { name: user.name, email: user.email } });
+});
+
+// 3. CREATE ROOM
 app.post('/api/create-room', (req, res) => {
   const hostName = (req.body.hostName || 'Host Player').trim();
   let code;
@@ -46,8 +73,8 @@ app.post('/api/create-room', (req, res) => {
     activeColor: 'red',
     diceValue: null,
     tokens: {
-      red: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }],
-      yellow: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }]
+      red: [-1, -1, -1, -1],
+      yellow: [-1, -1, -1, -1]
     },
     version: 1
   };
@@ -56,7 +83,7 @@ app.post('/api/create-room', (req, res) => {
   res.json({ success: true, roomCode: code, color: 'red' });
 });
 
-// 2. JOIN 4-DIGIT ROOM
+// 4. JOIN ROOM
 app.post('/api/join-room', (req, res) => {
   const rawCode = (req.body.roomCode || '').toString().trim().replace(/\s+/g, '');
   const guestName = (req.body.playerName || 'Guest Player').trim();
@@ -74,7 +101,7 @@ app.post('/api/join-room', (req, res) => {
   res.json({ success: true, roomCode: rawCode, color: 'yellow', players: room.players });
 });
 
-// 3. START GAME
+// 5. START GAME
 app.post('/api/start-game', (req, res) => {
   const code = (req.body.roomCode || '').toString().trim();
   const room = rooms.get(code);
@@ -87,7 +114,7 @@ app.post('/api/start-game', (req, res) => {
   res.json({ success: true });
 });
 
-// 4. SYNC ACTIONS (ROLL / MOVE / PASS)
+// 6. ACTION DISPATCH (DICE ROLL & MOVE & PASS)
 app.post('/api/send-action', (req, res) => {
   const code = (req.body.roomCode || '').toString().trim();
   const act = req.body.action;
@@ -98,8 +125,15 @@ app.post('/api/send-action', (req, res) => {
     room.diceValue = act.roll;
     room.activeColor = act.color;
   } else if (act.type === 'TOKEN_MOVED') {
-    if (room.tokens[act.color] && room.tokens[act.color][act.tokenId]) {
-      room.tokens[act.color][act.tokenId].step = act.toStep;
+    if (room.tokens[act.color]) {
+      room.tokens[act.color][act.tokenId] = act.toStep;
+    }
+    // Cut rival token
+    if (act.cutRival) {
+      const rival = act.color === 'red' ? 'yellow' : 'red';
+      if (room.tokens[rival] && room.tokens[rival][act.cutTokenId] !== undefined) {
+        room.tokens[rival][act.cutTokenId] = -1;
+      }
     }
     room.diceValue = null;
     if (!act.bonusTurn) {
@@ -114,7 +148,7 @@ app.post('/api/send-action', (req, res) => {
   res.json({ success: true });
 });
 
-// 5. POLL SERVER SNAPSHOT
+// 7. REALTIME POLL
 app.get('/api/poll/:roomCode', (req, res) => {
   const code = (req.params.roomCode || '').toString().trim();
   const room = rooms.get(code);
@@ -132,5 +166,5 @@ app.get('/api/poll/:roomCode', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo State-Authority Engine live on port ${PORT}`);
+  console.log(`Ludo Pure Engine active on port ${PORT}`);
 });
