@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - PURE STATE REPLICATION CLIENT (100% VISUAL & TURN SYNC)
+ * LUDO ROYALE - FULL AUTH & STATE-SYNCHRONIZED CLIENT ENGINE
  * ============================================================================
  */
 
@@ -9,6 +9,7 @@
 
   localStorage.removeItem('ludo_active_room');
 
+  let currentUser = JSON.parse(localStorage.getItem('ludo_user') || 'null');
   let currentRoomCode = null;
   let myColor = 'red';
   let isBoardLaunched = false;
@@ -78,20 +79,6 @@
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
       osc.connect(gain); gain.connect(this.ctx.destination);
       osc.start(now); osc.stop(now + 0.45);
-    },
-    playVictory() {
-      if (!this.enabled || !this.ctx) return;
-      const now = this.ctx.currentTime;
-      [440, 554.37, 659.25, 880].forEach((f, idx) => {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(f, now + idx * 0.12);
-        gain.gain.setValueAtTime(0.3, now + idx * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
-        osc.connect(gain); gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.12); osc.stop(now + idx * 0.12 + 0.4);
-      });
     }
   };
 
@@ -122,56 +109,47 @@
     } else {
       const dist = step - 51;
       if (color === 'red')    return { row: 13 - dist, col: 7 };
-      if (color === 'green')  return { row: 7, col: dist + 1 };
       if (color === 'yellow') return { row: dist + 1, col: 7 };
+      if (color === 'green')  return { row: 7, col: dist + 1 };
       if (color === 'blue')   return { row: 7, col: 13 - dist };
     }
   }
 
   const GameState = {
     isOnline: false,
-    myOnlineColor: 'red',
     players: [],
-    activePlayerIndices: [],
-    turnPointer: 0,
+    activeColor: 'red',
     diceValue: null,
     isRolling: false,
     isAnimating: false,
-    winners: [],
-    tokens: {},
+    tokens: {
+      red: [-1, -1, -1, -1],
+      yellow: [-1, -1, -1, -1]
+    },
 
-    init(configuredPlayers, isOnlineMode = false, myOnlineClr = 'red') {
+    init(configuredPlayers, isOnlineMode = false) {
       this.isOnline = isOnlineMode;
-      this.myOnlineColor = myOnlineClr;
       this.players = configuredPlayers;
-      this.activePlayerIndices = configuredPlayers.map((_, idx) => idx);
-      this.turnPointer = 0;
+      this.activeColor = 'red';
       this.diceValue = null;
       this.isRolling = false;
       this.isAnimating = false;
-      this.winners = [];
       this.tokens = {
-        red: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }],
-        yellow: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }],
-        green: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }],
-        blue: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }]
+        red: [-1, -1, -1, -1],
+        yellow: [-1, -1, -1, -1]
       };
     },
 
-    getCurrentPlayer() {
-      return this.players[this.activePlayerIndices[this.turnPointer]] || this.players[0];
-    },
-
-    canTokenMove(token, roll) {
-      if (token.step === -1) return roll === 6;
-      return (token.step + roll) <= 56;
+    canTokenMove(step, roll) {
+      if (step === -1) return roll === 6;
+      return (step + roll) <= 56;
     },
 
     getLegalMoves(color, roll) {
-      const pTokens = this.tokens[color];
+      const list = this.tokens[color];
       const valid = [];
-      pTokens.forEach(t => {
-        if (this.canTokenMove(t, roll)) valid.push(t.id);
+      list.forEach((step, id) => {
+        if (this.canTokenMove(step, roll)) valid.push(id);
       });
       return valid;
     }
@@ -210,67 +188,66 @@
     }
   }
 
-  function setTokenPosition(tokenEl, color, step, id) {
+  function mountTokenToTarget(tokenEl, color, step, id) {
     if (step === -1) {
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
-      if (spot) {
+      if (spot && tokenEl.parentElement !== spot) {
         spot.appendChild(tokenEl);
         tokenEl.style.top = '50%';
         tokenEl.style.left = '50%';
       }
     } else {
       const v = getVisualCoordsForStep(color, step);
-      const cell = document.getElementById(`cell-${v.row}-${v.col}`);
-      if (cell) {
-        cell.appendChild(tokenEl);
-        tokenEl.style.top = '50%';
-        tokenEl.style.left = '50%';
+      if (v) {
+        const cell = document.getElementById(`cell-${v.row}-${v.col}`);
+        if (cell && tokenEl.parentElement !== cell) {
+          cell.appendChild(tokenEl);
+          tokenEl.style.top = '50%';
+          tokenEl.style.left = '50%';
+        }
       }
     }
   }
 
-  function renderTokensLayer() {
+  function createAllTokens() {
     document.querySelectorAll('.ludo-token').forEach(el => el.remove());
 
-    ['red', 'yellow', 'green', 'blue'].forEach(color => {
-      const pTokens = GameState.tokens[color];
-      if (!pTokens) return;
-
-      pTokens.forEach(t => {
-        const tokenEl = document.createElement('div');
-        tokenEl.className = `ludo-token token-${color}`;
-        tokenEl.id = `token-${color}-${t.id}`;
-        tokenEl.dataset.color = color;
-        tokenEl.dataset.id = t.id;
-
-        setTokenPosition(tokenEl, color, t.step, t.id);
-        tokenEl.addEventListener('click', onTokenClicked);
-      });
+    ['red', 'yellow'].forEach(color => {
+      for (let i = 0; i < 4; i++) {
+        const tok = document.createElement('div');
+        tok.className = `ludo-token token-${color}`;
+        tok.id = `token-${color}-${i}`;
+        tok.dataset.color = color;
+        tok.dataset.id = i;
+        tok.onclick = onTokenClicked;
+        mountTokenToTarget(tok, color, -1, i);
+      }
     });
   }
 
-  function updateVisualTokensPositions() {
-    ['red', 'yellow', 'green', 'blue'].forEach(color => {
-      const pTokens = GameState.tokens[color];
-      if (!pTokens) return;
-
-      pTokens.forEach(t => {
-        const el = document.getElementById(`token-${color}-${t.id}`);
-        if (el) {
-          setTokenPosition(el, color, t.step, t.id);
+  function updateTokensView() {
+    ['red', 'yellow'].forEach(color => {
+      const steps = GameState.tokens[color];
+      steps.forEach((step, i) => {
+        let tok = document.getElementById(`token-${color}-${i}`);
+        if (!tok) {
+          tok = document.createElement('div');
+          tok.className = `ludo-token token-${color}`;
+          tok.id = `token-${color}-${i}`;
+          tok.dataset.color = color;
+          tok.dataset.id = i;
+          tok.onclick = onTokenClicked;
         }
+        mountTokenToTarget(tok, color, step, i);
       });
     });
   }
 
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
-    const currentPlayer = GameState.getCurrentPlayer();
-    if (!currentPlayer) return;
+    if (GameState.isOnline && GameState.activeColor !== myColor) return;
 
-    if (GameState.isOnline && currentPlayer.color !== myColor) return;
-
-    const finalRoll = Math.floor(Math.random() * 6) + 1;
+    const roll = Math.floor(Math.random() * 6) + 1;
     GameState.isRolling = true;
     setDiceInteractionEnabled(false);
 
@@ -280,8 +257,8 @@
 
     await new Promise(res => setTimeout(res, 750));
 
-    diceEl.className = `dice-cube show-${finalRoll}`;
-    GameState.diceValue = finalRoll;
+    diceEl.className = `dice-cube show-${roll}`;
+    GameState.diceValue = roll;
     GameState.isRolling = false;
 
     if (GameState.isOnline) {
@@ -290,20 +267,20 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomCode: currentRoomCode,
-          action: { type: 'DICE_ROLLED', roll: finalRoll, color: myColor }
+          action: { type: 'DICE_ROLLED', roll: roll, color: myColor }
         })
       });
     }
 
-    handlePostRollOptions(currentPlayer.color, finalRoll);
+    handlePostRoll(GameState.activeColor, roll);
   }
 
-  async function handlePostRollOptions(color, roll) {
-    const legalTokenIds = GameState.getLegalMoves(color, roll);
+  async function handlePostRoll(color, roll) {
+    const legalTokens = GameState.getLegalMoves(color, roll);
 
-    if (legalTokenIds.length === 0) {
+    if (legalTokens.length === 0) {
       showTurnNotification("No Moves Available");
-      await new Promise(res => setTimeout(res, 800));
+      await new Promise(res => setTimeout(res, 850));
       if (GameState.isOnline) {
         fetch('/api/send-action', {
           method: 'POST',
@@ -311,13 +288,14 @@
           body: JSON.stringify({ roomCode: currentRoomCode, action: { type: 'TURN_PASS' } })
         });
       } else {
-        advanceLocalTurn();
+        GameState.activeColor = (color === 'red') ? 'yellow' : 'red';
+        syncUIWithTurn();
       }
-    } else if (legalTokenIds.length === 1) {
+    } else if (legalTokens.length === 1) {
       await new Promise(res => setTimeout(res, 350));
-      executeMove(color, legalTokenIds[0], roll);
+      executeMove(color, legalTokens[0], roll);
     } else {
-      highlightMovableTokens(color, legalTokenIds);
+      highlightMovableTokens(color, legalTokens);
       showTurnNotification("Select a Token to Move");
     }
   }
@@ -327,9 +305,8 @@
 
     const color = e.currentTarget.dataset.color;
     const id = parseInt(e.currentTarget.dataset.id, 10);
-    const currentPlayer = GameState.getCurrentPlayer();
 
-    if (!currentPlayer || color !== currentPlayer.color) return;
+    if (color !== GameState.activeColor) return;
     if (GameState.isOnline && color !== myColor) return;
 
     const legalTokens = GameState.getLegalMoves(color, GameState.diceValue);
@@ -344,50 +321,43 @@
     setDiceInteractionEnabled(false);
     clearTokenHighlights();
 
-    const token = GameState.tokens[color].find(t => t.id === tokenId);
-    const fromStep = token.step;
-    let grantBonus = (roll === 6);
+    const fromStep = GameState.tokens[color][tokenId];
     let toStep = fromStep;
+    let grantBonus = (roll === 6);
+    let cutRival = false;
+    let cutTokenId = -1;
 
     if (fromStep === -1 && roll === 6) {
       toStep = 0;
-      token.step = 0;
       SoundManager.playReleaseYes();
-      const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
-      setTokenPosition(tokenEl, color, 0, tokenId);
-      await new Promise(res => setTimeout(res, 250));
     } else {
       toStep = fromStep + roll;
-      token.step = toStep;
       SoundManager.playStepPuk();
-      const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
-      setTokenPosition(tokenEl, color, toStep, tokenId);
-      await new Promise(res => setTimeout(res, 250));
 
       if (toStep === 56) {
         grantBonus = true;
       } else if (toStep < 51) {
-        const myGlobalIdx = (COLOR_SPECS[color].offset + toStep) % 52;
-        if (!SAFE_CELL_INDICES.includes(myGlobalIdx)) {
-          const rivalColor = (color === 'red') ? 'yellow' : 'red';
-          const rivalTokens = GameState.tokens[rivalColor];
-          if (rivalTokens) {
-            rivalTokens.forEach(rTok => {
-              if (rTok.step >= 0 && rTok.step < 51) {
-                const rGlobal = (COLOR_SPECS[rivalColor].offset + rTok.step) % 52;
-                if (rGlobal === myGlobalIdx) {
-                  SoundManager.playCaptureSuuu();
-                  grantBonus = true;
-                  rTok.step = -1;
-                  const rEl = document.getElementById(`token-${rivalColor}-${rTok.id}`);
-                  setTokenPosition(rEl, rivalColor, -1, rTok.id);
-                }
+        const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
+        if (!SAFE_CELL_INDICES.includes(myGlobal)) {
+          const rival = (color === 'red') ? 'yellow' : 'red';
+          GameState.tokens[rival].forEach((rStep, rId) => {
+            if (rStep >= 0 && rStep < 51) {
+              const rivalGlobal = (COLOR_SPECS[rival].offset + rStep) % 52;
+              if (rivalGlobal === myGlobal) {
+                SoundManager.playCaptureSuuu();
+                grantBonus = true;
+                cutRival = true;
+                cutTokenId = rId;
+                GameState.tokens[rival][rId] = -1;
               }
-            });
-          }
+            }
+          });
         }
       }
     }
+
+    GameState.tokens[color][tokenId] = toStep;
+    updateTokensView();
 
     if (GameState.isOnline && color === myColor) {
       fetch('/api/send-action', {
@@ -400,7 +370,9 @@
             color: color,
             tokenId: tokenId,
             toStep: toStep,
-            bonusTurn: grantBonus
+            bonusTurn: grantBonus,
+            cutRival: cutRival,
+            cutTokenId: cutTokenId
           }
         })
       });
@@ -410,15 +382,11 @@
     GameState.isAnimating = false;
 
     if (!GameState.isOnline) {
-      if (!grantBonus) advanceLocalTurn();
-      else syncUIWithTurn();
+      if (!grantBonus) {
+        GameState.activeColor = (color === 'red') ? 'yellow' : 'red';
+      }
+      syncUIWithTurn();
     }
-  }
-
-  function advanceLocalTurn() {
-    GameState.diceValue = null;
-    GameState.turnPointer = (GameState.turnPointer + 1) % GameState.players.length;
-    syncUIWithTurn();
   }
 
   function highlightMovableTokens(color, tokenIds) {
@@ -436,19 +404,19 @@
   }
 
   function syncUIWithTurn() {
-    const p = GameState.getCurrentPlayer();
-    if (!p) return;
+    const curColor = GameState.activeColor;
+    const playerObj = GameState.players.find(p => p.color === curColor) || { name: curColor.toUpperCase() };
 
     const nameEl = document.getElementById('turn-player-name');
-    nameEl.innerText = p.name;
-    nameEl.style.color = `var(--ludo-${p.color})`;
+    nameEl.innerText = playerObj.name;
+    nameEl.style.color = `var(--ludo-${curColor})`;
 
-    document.getElementById('footer-player-title').innerText = p.name;
-    document.getElementById('badge-pin-icon').className = `pin-sample token-${p.color}`;
+    document.getElementById('footer-player-title').innerText = playerObj.name;
+    document.getElementById('badge-pin-icon').className = `pin-sample token-${curColor}`;
 
-    const isMyBaari = !GameState.isOnline || (p.color === myColor);
-    document.getElementById('footer-player-status').innerText = isMyBaari ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
-    setDiceInteractionEnabled(isMyBaari);
+    const isMyTurn = !GameState.isOnline || (curColor === myColor);
+    document.getElementById('footer-player-status').innerText = isMyTurn ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
+    setDiceInteractionEnabled(isMyTurn && !GameState.diceValue);
   }
 
   function setDiceInteractionEnabled(enable) {
@@ -462,7 +430,7 @@
     document.getElementById('footer-player-status').innerText = msg;
   }
 
-  function launchGameBoard(configuredPlayers, isOnlineMode = false, myOnlineClr = 'red') {
+  function launchGameBoard(configuredPlayers, isOnlineMode = false) {
     if (isBoardLaunched) return;
     isBoardLaunched = true;
 
@@ -474,16 +442,16 @@
     });
 
     document.getElementById('hud-room-display').innerText = isOnlineMode ? `ROOM: ${currentRoomCode}` : 'PASS & PLAY';
-    GameState.init(configuredPlayers, isOnlineMode, myOnlineClr);
+    GameState.init(configuredPlayers, isOnlineMode);
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
 
     buildBoardGrid();
-    renderTokensLayer();
+    createAllTokens();
     syncUIWithTurn();
   }
 
-  // STATE POLLING: PURE REPLICATION
+  // STATE POLLING (SINGLE TRUTH REPLICATION)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -492,7 +460,7 @@
         const data = await res.json();
         if (!data.success) return;
 
-        // 1. Lobby Update
+        // 1. Lobby Host Readiness
         if (!isBoardLaunched && !data.gameStarted) {
           if (data.players.length >= 2 && myColor === 'red') {
             const btn = document.getElementById('btn-create-room');
@@ -503,7 +471,7 @@
             btn.onclick = (e) => {
               e.preventDefault();
               btn.disabled = true;
-              btn.innerText = 'Starting...';
+              btn.innerText = 'Starting Game...';
               fetch('/api/start-game', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -513,39 +481,32 @@
           }
         }
 
-        // 2. Start Game Sync
+        // 2. Launch Board synchronously
         if (!isBoardLaunched && data.gameStarted) {
-          launchGameBoard(data.players, true, myColor);
+          launchGameBoard(data.players, true);
         }
 
-        // 3. State Replication (Tokens & Turn)
+        // 3. State Replication
         if (isBoardLaunched && data.version !== lastServerVersion) {
           lastServerVersion = data.version;
 
-          // Replicate Token Steps
+          // Replicate exact token steps
           if (data.tokens) {
-            ['red', 'yellow'].forEach(c => {
-              if (data.tokens[c]) {
-                data.tokens[c].forEach((st, i) => {
-                  if (GameState.tokens[c] && GameState.tokens[c][i]) {
-                    GameState.tokens[c][i].step = st.step;
-                  }
-                });
-              }
-            });
-            updateVisualTokensPositions();
+            GameState.tokens.red = [...data.tokens.red];
+            GameState.tokens.yellow = [...data.tokens.yellow];
+            updateTokensView();
           }
 
-          // Replicate Turn
-          const pIdx = GameState.players.findIndex(p => p.color === data.activeColor);
-          if (pIdx !== -1) {
-            GameState.turnPointer = pIdx;
-          }
+          // Replicate current active color
+          GameState.activeColor = data.activeColor;
 
-          // Replicate Opponent Dice Display
-          if (data.diceValue && data.activeColor !== myColor) {
+          // Replicate remote dice value without local ghost roll
+          if (data.diceValue) {
+            GameState.diceValue = data.diceValue;
             const diceEl = document.getElementById('dice-3d-box');
             diceEl.className = `dice-cube show-${data.diceValue}`;
+          } else {
+            GameState.diceValue = null;
           }
 
           syncUIWithTurn();
@@ -586,6 +547,106 @@
     launchGameBoard(configuredPlayers, false);
   }
 
+  // USER AUTHENTICATION UI
+  function updateAuthHeaderUI() {
+    let authBox = document.getElementById('user-profile-badge');
+    if (!authBox) {
+      authBox = document.createElement('div');
+      authBox.id = 'user-profile-badge';
+      authBox.style = "position:absolute; top:12px; right:12px; display:flex; align-items:center; gap:8px; z-index:100;";
+      document.getElementById('lobby-screen').appendChild(authBox);
+    }
+
+    if (currentUser) {
+      authBox.innerHTML = `
+        <div style="background:#1e293b; border:1px solid #38bdf8; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; color:#38bdf8;">
+          👤 ${currentUser.name}
+        </div>
+        <button id="btn-logout-user" style="background:#ef4444; color:white; border:none; border-radius:8px; padding:6px 10px; font-size:11px; cursor:pointer;">Logout</button>
+      `;
+      document.getElementById('host-player-name').value = currentUser.name;
+      document.getElementById('join-player-name').value = currentUser.name;
+      document.getElementById('btn-logout-user').onclick = () => {
+        localStorage.removeItem('ludo_user');
+        currentUser = null;
+        updateAuthHeaderUI();
+      };
+    } else {
+      authBox.innerHTML = `
+        <button id="btn-open-login" style="background:#0284c7; color:white; border:none; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+          🔑 Login / Sign Up
+        </button>
+      `;
+      document.getElementById('btn-open-login').onclick = () => {
+        document.getElementById('auth-modal').style.display = 'flex';
+      };
+    }
+  }
+
+  function injectAuthModal() {
+    if (document.getElementById('auth-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'auth-modal';
+    modal.className = 'modal-backdrop';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width:340px;">
+        <h2 id="auth-title">User Login</h2>
+        <div style="display:flex; flex-direction:column; gap:8px; margin: 15px 0;">
+          <input type="text" id="auth-name" placeholder="Apna Naam (Only for Sign Up)" style="display:none; padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+          <input type="email" id="auth-email" placeholder="Email Address" style="padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+          <input type="password" id="auth-pass" placeholder="Password" style="padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+        </div>
+        <button class="btn btn-primary btn-large" id="btn-auth-submit">LOGIN</button>
+        <p id="toggle-auth-mode" style="margin-top:12px; font-size:12px; color:#38bdf8; cursor:pointer;">Naya account banayein (Sign Up)</p>
+        <button class="btn btn-secondary" id="btn-auth-close" style="margin-top:8px; width:100%;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    let isSignUpMode = false;
+    document.getElementById('toggle-auth-mode').onclick = () => {
+      isSignUpMode = !isSignUpMode;
+      document.getElementById('auth-title').innerText = isSignUpMode ? 'Naya Account Banayein' : 'User Login';
+      document.getElementById('auth-name').style.display = isSignUpMode ? 'block' : 'none';
+      document.getElementById('btn-auth-submit').innerText = isSignUpMode ? 'SIGN UP' : 'LOGIN';
+      document.getElementById('toggle-auth-mode').innerText = isSignUpMode ? 'Account hai? Login karein' : 'Naya account banayein (Sign Up)';
+    };
+
+    document.getElementById('btn-auth-close').onclick = () => {
+      modal.style.display = 'none';
+    };
+
+    document.getElementById('btn-auth-submit').onclick = async () => {
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-pass').value.trim();
+      const name = document.getElementById('auth-name').value.trim();
+
+      const endpoint = isSignUpMode ? '/api/auth/signup' : '/api/auth/login';
+      const bodyData = isSignUpMode ? { name, email, password } : { email, password };
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentUser = data.user;
+          localStorage.setItem('ludo_user', JSON.stringify(currentUser));
+          modal.style.display = 'none';
+          updateAuthHeaderUI();
+          alert(`Swagat hai, ${currentUser.name}!`);
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Server connection error.');
+      }
+    };
+  }
+
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
@@ -616,7 +677,7 @@
     const btnCreateRoom = document.getElementById('btn-create-room');
     btnCreateRoom.onclick = async () => {
       SoundManager.init();
-      const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
+      const name = (currentUser ? currentUser.name : document.getElementById('host-player-name').value.trim()) || 'Host Player';
       btnCreateRoom.innerText = 'Creating Room...';
       btnCreateRoom.disabled = true;
 
@@ -646,7 +707,7 @@
     const btnJoinRoom = document.getElementById('btn-join-room');
     btnJoinRoom.onclick = async () => {
       SoundManager.init();
-      const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
+      const name = (currentUser ? currentUser.name : document.getElementById('join-player-name').value.trim()) || 'Guest Player';
       const rawInput = document.getElementById('join-room-code').value || '';
       const code = rawInput.toString().trim().replace(/\s+/g, '');
 
@@ -707,7 +768,9 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     renderLobbyInputs(selectedCount);
+    injectAuthModal();
     setupEventListeners();
+    updateAuthHeaderUI();
   });
 
 })();
