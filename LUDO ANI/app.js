@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - PERSISTENT USER AUTH & RESUME ENGINE (NO DROP/NO CUT)
+ * LUDO ROYALE - TRUE MULTIPLAYER REALTIME SYNC (MOBILE & LAPTOP GUARANTEED)
  * ============================================================================
  */
 
@@ -10,7 +10,6 @@
   let currentUser = JSON.parse(localStorage.getItem('ludo_user') || 'null');
   let currentRoomCode = localStorage.getItem('ludo_active_room') || null;
   let myColor = localStorage.getItem('ludo_my_color') || 'red';
-  let isOnline = false;
   let isBoardLaunched = false;
   let pollingInterval = null;
   let processedActionIds = new Set();
@@ -357,7 +356,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomCode: currentRoomCode, action: action })
-    }).catch(e => console.warn('Sync error:', e));
+    }).catch(e => console.warn('Action sync error:', e));
   }
 
   async function onRollDiceTriggered() {
@@ -397,6 +396,7 @@
       showTurnNotification("3 Consecutive 6s! Turn Cancelled");
       await new Promise(res => setTimeout(res, 900));
       GameState.advanceTurn();
+      if (GameState.isOnline) broadcastOnlineAction({ type: 'TURN_PASS' });
       syncUIWithTurn();
       return;
     }
@@ -408,21 +408,13 @@
       showTurnNotification("No Moves Available");
       await new Promise(res => setTimeout(res, 750));
       GameState.advanceTurn();
+      if (GameState.isOnline) broadcastOnlineAction({ type: 'TURN_PASS' });
       syncUIWithTurn();
     } else if (legalTokenIds.length === 1) {
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
       await new Promise(res => setTimeout(res, 450));
       clearTokenHighlights();
       executeMove(currentPlayer.color, legalTokenIds[0]);
-
-      if (GameState.isOnline && currentPlayer.color === myColor) {
-        broadcastOnlineAction({
-          type: 'TOKEN_MOVED',
-          color: currentPlayer.color,
-          tokenId: legalTokenIds[0],
-          toStep: GameState.tokens[currentPlayer.color][legalTokenIds[0]].step
-        });
-      }
     } else {
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
       showTurnNotification("Select a Token to Move");
@@ -444,15 +436,6 @@
 
     clearTokenHighlights();
     executeMove(color, id);
-
-    if (GameState.isOnline) {
-      broadcastOnlineAction({
-        type: 'TOKEN_MOVED',
-        color: color,
-        tokenId: id,
-        toStep: GameState.tokens[color][id].step
-      });
-    }
   }
 
   async function executeMove(color, tokenId) {
@@ -505,6 +488,16 @@
       }
     }
 
+    if (GameState.isOnline && color === myColor) {
+      broadcastOnlineAction({
+        type: 'TOKEN_MOVED',
+        color: color,
+        tokenId: tokenId,
+        toStep: token.step,
+        bonusTurn: grantBonus
+      });
+    }
+
     const isPlayerFinished = GameState.tokens[color].every(t => t.step === 56);
     if (isPlayerFinished && !GameState.winners.includes(color)) {
       GameState.winners.push(color);
@@ -549,7 +542,7 @@
     nameEl.style.color = `var(--ludo-${p.color})`;
 
     document.getElementById('footer-player-title').innerText = p.name;
-    document.getElementById('footer-player-status').innerText = 'ROLL THE DICE';
+    document.getElementById('footer-player-status').innerText = (GameState.isOnline && p.color !== myColor) ? 'WAITING FOR OPPONENT...' : 'ROLL THE DICE';
     document.getElementById('badge-pin-icon').className = `pin-sample token-${p.color}`;
 
     const canRoll = !GameState.isOnline || (p.color === myColor);
@@ -618,7 +611,7 @@
     syncUIWithTurn();
   }
 
-  // REALTIME STATE POLLING (Auto-Resume on Refresh or Disconnect)
+  // REALTIME STATE POLLING (350MS RESILIENT SYNC)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -646,10 +639,9 @@
           }
         }
 
-        // Auto Resume Game If Page Refreshed
+        // Synchronous Board Launcher
         if (!isBoardLaunched && data.gameStarted) {
           launchGameBoard(data.players, true, myColor);
-          // Restore server token positions
           if (data.tokens) {
             ['red', 'yellow'].forEach(c => {
               if (data.tokens[c]) {
@@ -664,7 +656,7 @@
           }
         }
 
-        // Execute Actions
+        // Live Remote Actions Synchronizer
         if (data.actions && data.actions.length > 0) {
           for (let act of data.actions) {
             if (!processedActionIds.has(act.id)) {
@@ -680,14 +672,17 @@
                 if (act.color !== myColor) {
                   executeMove(act.color, act.tokenId);
                 }
+              } else if (act.type === 'TURN_PASS') {
+                if (GameState.getCurrentPlayer().color !== myColor) {
+                  GameState.advanceTurn();
+                  syncUIWithTurn();
+                }
               }
             }
           }
         }
-      } catch (err) {
-        // quiet retry
-      }
-    }, 400);
+      } catch (err) {}
+    }, 350);
   }
 
   // Pass & Play Mode
@@ -984,7 +979,6 @@
     setupEventListeners();
     updateAuthHeaderUI();
 
-    // AUTO RECOVER ACTIVE ROOM ON PAGE REFRESH
     if (currentRoomCode) {
       startStatePolling(currentRoomCode);
     }
