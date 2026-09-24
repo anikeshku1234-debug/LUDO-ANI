@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - ULTRA-RELIABLE HTTP RELAY (LAPTOP + MOBILE 100% CONNECT)
+ * LUDO ROYALE - REAL-TIME CLIENT WITH ACCURATE TURN & ACTION SYNC
  * ============================================================================
  */
 
@@ -10,6 +10,7 @@
   let currentRoomCode = null;
   let myColor = 'red';
   let isOnline = false;
+  let isBoardLaunched = false;
   let pollingInterval = null;
   let processedActionIds = new Set();
 
@@ -349,14 +350,13 @@
     tokenEl.style.left = `${baseCoords.left}px`;
   }
 
-  // HTTP ACTION SENDER
   function broadcastOnlineAction(action) {
     if (!currentRoomCode) return;
     fetch('/api/send-action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomCode: currentRoomCode, action: action })
-    }).catch(e => console.warn('Action sync error:', e));
+    }).catch(e => console.warn('Sync error:', e));
   }
 
   async function onRollDiceTriggered() {
@@ -364,13 +364,13 @@
     const currentPlayer = GameState.getCurrentPlayer();
     if (!currentPlayer) return;
 
-    if (GameState.isOnline && currentPlayer.color !== GameState.myOnlineColor) return;
+    if (GameState.isOnline && currentPlayer.color !== myColor) return;
 
     const finalRoll = Math.floor(Math.random() * 6) + 1;
     applyDiceRoll(finalRoll);
 
     if (GameState.isOnline) {
-      broadcastOnlineAction({ type: 'DICE_ROLLED', roll: finalRoll });
+      broadcastOnlineAction({ type: 'DICE_ROLLED', roll: finalRoll, playerColor: currentPlayer.color });
     }
   }
 
@@ -414,7 +414,7 @@
       clearTokenHighlights();
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
-      if (GameState.isOnline && currentPlayer.color === GameState.myOnlineColor) {
+      if (GameState.isOnline && currentPlayer.color === myColor) {
         broadcastOnlineAction({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
       }
     } else {
@@ -431,7 +431,7 @@
     const currentPlayer = GameState.getCurrentPlayer();
 
     if (!currentPlayer || color !== currentPlayer.color) return;
-    if (GameState.isOnline && color !== GameState.myOnlineColor) return;
+    if (GameState.isOnline && color !== myColor) return;
 
     const legalTokens = GameState.getLegalMoves(color, GameState.diceValue);
     if (!legalTokens.includes(id)) return;
@@ -541,7 +541,7 @@
     document.getElementById('footer-player-status').innerText = 'ROLL THE DICE';
     document.getElementById('badge-pin-icon').className = `pin-sample token-${p.color}`;
 
-    const canRoll = !GameState.isOnline || (p.color === GameState.myOnlineColor);
+    const canRoll = !GameState.isOnline || (p.color === myColor);
     setDiceInteractionEnabled(canRoll);
   }
 
@@ -587,6 +587,9 @@
   }
 
   function launchGameBoard(configuredPlayers, isOnlineMode = false, myOnlineClr = 'red') {
+    if (isBoardLaunched) return;
+    isBoardLaunched = true;
+
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const label = document.getElementById(`label-${c}`);
       const p = configuredPlayers.find(x => x.color === c);
@@ -594,6 +597,7 @@
       else label.innerText = c.toUpperCase();
     });
 
+    document.getElementById('hud-room-display').innerText = isOnlineMode ? `ROOM: ${currentRoomCode}` : 'PASS & PLAY';
     GameState.init(configuredPlayers, isOnlineMode, myOnlineClr);
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
@@ -603,9 +607,7 @@
     syncUIWithTurn();
   }
 
-  // ==========================================
-  // REALTIME POLLING RELAY ENGINE
-  // ==========================================
+  // REALTIME POLLING STATE LISTENER
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -614,38 +616,34 @@
         const data = await res.json();
         if (!data.success) return;
 
-        // Lobby Sync
-        if (!GameState.isOnline && !data.gameStarted) {
-          if (data.players.length >= 2) {
+        // Lobby Sync (Host activates Start Game)
+        if (!isBoardLaunched && !data.gameStarted) {
+          if (data.players.length >= 2 && myColor === 'red') {
             const btn = document.getElementById('btn-create-room');
-            if (myColor === 'red') {
-              btn.innerText = `▶ START GAME (${data.players[1].name} Ready!)`;
-              btn.disabled = false;
-              btn.classList.remove('btn-secondary');
-              btn.classList.add('btn-primary');
-              btn.onclick = () => {
-                fetch('/api/start-game', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ roomCode: roomCode })
-                });
-                launchGameBoard(data.players, true, 'red');
-              };
-            }
+            btn.innerText = `▶ START GAME (${data.players[1].name} Ready!)`;
+            btn.disabled = false;
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
+            btn.onclick = () => {
+              btn.disabled = true;
+              fetch('/api/start-game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomCode: roomCode })
+              });
+            };
           }
         }
 
-        // Both Devices Start Game Synchronously
-        if (!GameState.isOnline && data.gameStarted) {
-          launchGameBoard(data.players, true, myColor);
-        }
-
-        // Gameplay Remote Action Execution
+        // Action Processor
         if (data.actions && data.actions.length > 0) {
-          data.actions.forEach(act => {
+          for (let act of data.actions) {
             if (!processedActionIds.has(act.id)) {
               processedActionIds.add(act.id);
-              if (act.type === 'DICE_ROLLED') {
+
+              if (act.type === 'START_MATCH') {
+                launchGameBoard(act.players, true, myColor);
+              } else if (act.type === 'DICE_ROLLED') {
                 if (GameState.getCurrentPlayer().color !== myColor) {
                   applyDiceRoll(act.roll);
                 }
@@ -655,12 +653,12 @@
                 }
               }
             }
-          });
+          }
         }
       } catch (err) {
-        // quiet retry
+        // silent retry
       }
-    }, 450); // fast sync every 450ms
+    }, 400);
   }
 
   // Pass & Play Mode
@@ -721,7 +719,7 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // CREATE ROOM (GUARANTEED HTTP)
+    // CREATE ROOM
     document.getElementById('btn-create-room').addEventListener('click', async () => {
       SoundManager.init();
       const btn = document.getElementById('btn-create-room');
@@ -751,7 +749,7 @@
       }
     });
 
-    // JOIN ROOM (GUARANTEED HTTP)
+    // JOIN ROOM
     document.getElementById('btn-join-room').addEventListener('click', async () => {
       SoundManager.init();
       const btn = document.getElementById('btn-join-room');
@@ -828,6 +826,7 @@
       document.getElementById('settings-modal').style.display = 'none';
       document.getElementById('game-screen').style.display = 'none';
       document.getElementById('lobby-screen').style.display = 'flex';
+      isBoardLaunched = false;
       if (pollingInterval) clearInterval(pollingInterval);
     });
 
