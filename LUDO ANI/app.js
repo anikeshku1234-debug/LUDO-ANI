@@ -1,14 +1,15 @@
 /**
  * ============================================================================
- * LUDO ROYALE - REAL-TIME CLIENT WITH ACCURATE TURN & ACTION SYNC
+ * LUDO ROYALE - PERSISTENT USER AUTH & RESUME ENGINE (NO DROP/NO CUT)
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  let currentRoomCode = null;
-  let myColor = 'red';
+  let currentUser = JSON.parse(localStorage.getItem('ludo_user') || 'null');
+  let currentRoomCode = localStorage.getItem('ludo_active_room') || null;
+  let myColor = localStorage.getItem('ludo_my_color') || 'red';
   let isOnline = false;
   let isBoardLaunched = false;
   let pollingInterval = null;
@@ -415,7 +416,12 @@
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
       if (GameState.isOnline && currentPlayer.color === myColor) {
-        broadcastOnlineAction({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
+        broadcastOnlineAction({
+          type: 'TOKEN_MOVED',
+          color: currentPlayer.color,
+          tokenId: legalTokenIds[0],
+          toStep: GameState.tokens[currentPlayer.color][legalTokenIds[0]].step
+        });
       }
     } else {
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
@@ -440,7 +446,12 @@
     executeMove(color, id);
 
     if (GameState.isOnline) {
-      broadcastOnlineAction({ type: 'TOKEN_MOVED', color: color, tokenId: id });
+      broadcastOnlineAction({
+        type: 'TOKEN_MOVED',
+        color: color,
+        tokenId: id,
+        toStep: GameState.tokens[color][id].step
+      });
     }
   }
 
@@ -607,7 +618,7 @@
     syncUIWithTurn();
   }
 
-  // REALTIME POLLING STATE LISTENER
+  // REALTIME STATE POLLING (Auto-Resume on Refresh or Disconnect)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -616,7 +627,7 @@
         const data = await res.json();
         if (!data.success) return;
 
-        // Lobby Sync (Host activates Start Game)
+        // Lobby Sync
         if (!isBoardLaunched && !data.gameStarted) {
           if (data.players.length >= 2 && myColor === 'red') {
             const btn = document.getElementById('btn-create-room');
@@ -635,7 +646,25 @@
           }
         }
 
-        // Action Processor
+        // Auto Resume Game If Page Refreshed
+        if (!isBoardLaunched && data.gameStarted) {
+          launchGameBoard(data.players, true, myColor);
+          // Restore server token positions
+          if (data.tokens) {
+            ['red', 'yellow'].forEach(c => {
+              if (data.tokens[c]) {
+                data.tokens[c].forEach((st, idx) => {
+                  if (GameState.tokens[c] && GameState.tokens[c][idx]) {
+                    GameState.tokens[c][idx].step = st.step;
+                  }
+                });
+              }
+            });
+            updateVisualTokensPositions();
+          }
+        }
+
+        // Execute Actions
         if (data.actions && data.actions.length > 0) {
           for (let act of data.actions) {
             if (!processedActionIds.has(act.id)) {
@@ -656,7 +685,7 @@
           }
         }
       } catch (err) {
-        // silent retry
+        // quiet retry
       }
     }, 400);
   }
@@ -693,6 +722,106 @@
     launchGameBoard(configuredPlayers, false);
   }
 
+  // USER AUTHENTICATION UI
+  function updateAuthHeaderUI() {
+    let authBox = document.getElementById('user-profile-badge');
+    if (!authBox) {
+      authBox = document.createElement('div');
+      authBox.id = 'user-profile-badge';
+      authBox.style = "position:absolute; top:12px; right:12px; display:flex; align-items:center; gap:8px; z-index:100;";
+      document.getElementById('lobby-screen').appendChild(authBox);
+    }
+
+    if (currentUser) {
+      authBox.innerHTML = `
+        <div style="background:#1e293b; border:1px solid #38bdf8; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; color:#38bdf8;">
+          👤 ${currentUser.name}
+        </div>
+        <button id="btn-logout-user" style="background:#ef4444; color:white; border:none; border-radius:8px; padding:6px 10px; font-size:11px; cursor:pointer;">Logout</button>
+      `;
+      document.getElementById('host-player-name').value = currentUser.name;
+      document.getElementById('join-player-name').value = currentUser.name;
+      document.getElementById('btn-logout-user').onclick = () => {
+        localStorage.removeItem('ludo_user');
+        currentUser = null;
+        updateAuthHeaderUI();
+      };
+    } else {
+      authBox.innerHTML = `
+        <button id="btn-open-login" style="background:#0284c7; color:white; border:none; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:bold; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+          🔑 Login / Sign Up
+        </button>
+      `;
+      document.getElementById('btn-open-login').onclick = () => {
+        document.getElementById('auth-modal').style.display = 'flex';
+      };
+    }
+  }
+
+  function injectAuthModal() {
+    if (document.getElementById('auth-modal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'auth-modal';
+    modal.className = 'modal-backdrop';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width:340px;">
+        <h2 id="auth-title">User Login</h2>
+        <div style="display:flex; flex-direction:column; gap:8px; margin: 15px 0;">
+          <input type="text" id="auth-name" placeholder="Apna Naam (Only for Sign Up)" style="display:none; padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+          <input type="email" id="auth-email" placeholder="Email Address" style="padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+          <input type="password" id="auth-pass" placeholder="Password" style="padding:10px; background:#0f172a; border:1px solid #334155; color:white; border-radius:8px;">
+        </div>
+        <button class="btn btn-primary btn-large" id="btn-auth-submit">LOGIN</button>
+        <p id="toggle-auth-mode" style="margin-top:12px; font-size:12px; color:#38bdf8; cursor:pointer;">Naya account banayein (Sign Up)</p>
+        <button class="btn btn-secondary" id="btn-auth-close" style="margin-top:8px; width:100%;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    let isSignUpMode = false;
+    document.getElementById('toggle-auth-mode').onclick = () => {
+      isSignUpMode = !isSignUpMode;
+      document.getElementById('auth-title').innerText = isSignUpMode ? 'Naya Account Banayein' : 'User Login';
+      document.getElementById('auth-name').style.display = isSignUpMode ? 'block' : 'none';
+      document.getElementById('btn-auth-submit').innerText = isSignUpMode ? 'SIGN UP' : 'LOGIN';
+      document.getElementById('toggle-auth-mode').innerText = isSignUpMode ? 'Account hai? Login karein' : 'Naya account banayein (Sign Up)';
+    };
+
+    document.getElementById('btn-auth-close').onclick = () => {
+      modal.style.display = 'none';
+    };
+
+    document.getElementById('btn-auth-submit').onclick = async () => {
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-pass').value.trim();
+      const name = document.getElementById('auth-name').value.trim();
+
+      const endpoint = isSignUpMode ? '/api/auth/signup' : '/api/auth/login';
+      const bodyData = isSignUpMode ? { name, email, password } : { email, password };
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentUser = data.user;
+          localStorage.setItem('ludo_user', JSON.stringify(currentUser));
+          modal.style.display = 'none';
+          updateAuthHeaderUI();
+          alert(`Swagat hai, ${currentUser.name}!`);
+        } else {
+          alert(data.message);
+        }
+      } catch (e) {
+        alert('Server connection error.');
+      }
+    };
+  }
+
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
@@ -723,7 +852,8 @@
     document.getElementById('btn-create-room').addEventListener('click', async () => {
       SoundManager.init();
       const btn = document.getElementById('btn-create-room');
-      const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
+      const name = (currentUser ? currentUser.name : document.getElementById('host-player-name').value.trim()) || 'Host Player';
+      const email = currentUser ? currentUser.email : '';
       btn.innerText = 'Creating Room...';
       btn.disabled = true;
 
@@ -731,12 +861,14 @@
         const res = await fetch('/api/create-room', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hostName: name })
+          body: JSON.stringify({ hostName: name, userEmail: email })
         });
         const data = await res.json();
         if (data.success) {
           currentRoomCode = data.roomCode;
           myColor = 'red';
+          localStorage.setItem('ludo_active_room', currentRoomCode);
+          localStorage.setItem('ludo_my_color', 'red');
           document.getElementById('display-room-code').innerText = data.roomCode;
           document.getElementById('created-code-box').style.display = 'block';
           btn.innerText = 'Waiting for Friend to Join...';
@@ -753,7 +885,8 @@
     document.getElementById('btn-join-room').addEventListener('click', async () => {
       SoundManager.init();
       const btn = document.getElementById('btn-join-room');
-      const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
+      const name = (currentUser ? currentUser.name : document.getElementById('join-player-name').value.trim()) || 'Guest Player';
+      const email = currentUser ? currentUser.email : '';
       const rawInput = document.getElementById('join-room-code').value || '';
       const code = rawInput.toString().trim().replace(/\s+/g, '');
 
@@ -768,7 +901,7 @@
         const res = await fetch('/api/join-room', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomCode: code, playerName: name })
+          body: JSON.stringify({ roomCode: code, playerName: name, userEmail: email })
         });
         const data = await res.json();
         if (!data.success) {
@@ -779,7 +912,9 @@
         }
 
         currentRoomCode = code;
-        myColor = 'yellow';
+        myColor = data.color || 'yellow';
+        localStorage.setItem('ludo_active_room', currentRoomCode);
+        localStorage.setItem('ludo_my_color', myColor);
         btn.innerText = '✓ Connected! Waiting for Host to Start...';
         startStatePolling(code);
       } catch (err) {
@@ -827,6 +962,7 @@
       document.getElementById('game-screen').style.display = 'none';
       document.getElementById('lobby-screen').style.display = 'flex';
       isBoardLaunched = false;
+      localStorage.removeItem('ludo_active_room');
       if (pollingInterval) clearInterval(pollingInterval);
     });
 
@@ -844,7 +980,14 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     renderLobbyInputs(selectedCount);
+    injectAuthModal();
     setupEventListeners();
+    updateAuthHeaderUI();
+
+    // AUTO RECOVER ACTIVE ROOM ON PAGE REFRESH
+    if (currentRoomCode) {
+      startStatePolling(currentRoomCode);
+    }
   });
 
 })();
