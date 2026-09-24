@@ -29,37 +29,32 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
-// PERSISTENT USERS & ROOM ENGINE
-const usersDB = new Map(); // email -> { name, email, password }
-const rooms = new Map();   // roomCode -> Room Object
+const usersDB = new Map();
+const rooms = new Map();
 
-// 1. AUTH API: SIGNUP
+// 1. AUTH SIGNUP
 app.post('/api/auth/signup', (req, res) => {
   const { name, email, password } = req.body;
   const cleanEmail = (email || '').toLowerCase().trim();
-
   if (!cleanEmail || !password || !name) {
     return res.json({ success: false, message: 'Sabhi fields bharna zaroori hai!' });
   }
   if (usersDB.has(cleanEmail)) {
-    return res.json({ success: false, message: 'Yeh email pehle se registered hai! Login karein.' });
+    return res.json({ success: false, message: 'Email pehle se registered hai! Login karein.' });
   }
-
   const user = { name: name.trim(), email: cleanEmail, password: password.trim() };
   usersDB.set(cleanEmail, user);
   res.json({ success: true, user: { name: user.name, email: user.email } });
 });
 
-// 2. AUTH API: LOGIN
+// 2. AUTH LOGIN
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   const cleanEmail = (email || '').toLowerCase().trim();
-
   const user = usersDB.get(cleanEmail);
   if (!user || user.password !== (password || '').trim()) {
     return res.json({ success: false, message: 'Galat Email ya Password!' });
   }
-
   res.json({ success: true, user: { name: user.name, email: user.email } });
 });
 
@@ -76,12 +71,13 @@ app.post('/api/create-room', (req, res) => {
     code,
     players: [{ id: 'host', email: hostEmail, name: hostName, color: 'red' }],
     gameStarted: false,
+    activeColor: 'red',
+    currentRoll: null,
+    consecutiveSixes: 0,
     tokens: {
       red: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }],
       yellow: [{ id: 0, step: -1 }, { id: 1, step: -1 }, { id: 2, step: -1 }, { id: 3, step: -1 }]
     },
-    turnPointer: 0,
-    activeColor: 'red',
     actions: [],
     lastUpdated: Date.now()
   };
@@ -101,18 +97,13 @@ app.post('/api/join-room', (req, res) => {
     return res.json({ success: false, message: `Room (${rawCode}) nahi mila!` });
   }
 
-  // Check if player is reconnecting
-  const existingPlayer = room.players.find(p => p.email && p.email === guestEmail);
-  if (!existingPlayer && !room.players.some(p => p.id === 'guest')) {
-    if (room.gameStarted) {
-      return res.json({ success: false, message: 'Game pehle hi shuru ho chuka hai!' });
-    }
+  const existingGuest = room.players.find(p => p.id === 'guest');
+  if (!existingGuest) {
     room.players.push({ id: 'guest', email: guestEmail, name: guestName, color: 'yellow' });
   }
-
   room.lastUpdated = Date.now();
-  const myPlayer = room.players.find(p => p.email === guestEmail) || room.players[1] || room.players[0];
-  res.json({ success: true, roomCode: rawCode, color: myPlayer.color, players: room.players });
+
+  res.json({ success: true, roomCode: rawCode, color: 'yellow', players: room.players });
 });
 
 // 5. START GAME
@@ -122,6 +113,8 @@ app.post('/api/start-game', (req, res) => {
   if (!room) return res.json({ success: false });
 
   room.gameStarted = true;
+  room.activeColor = 'red';
+  room.currentRoll = null;
   room.actions.push({
     id: 'start_' + Date.now(),
     type: 'START_MATCH',
@@ -132,33 +125,42 @@ app.post('/api/start-game', (req, res) => {
   res.json({ success: true });
 });
 
-// 6. SEND ACTION
+// 6. ACTION DISPATCH (DICE ROLL & MOVE)
 app.post('/api/send-action', (req, res) => {
   const code = (req.body.roomCode || '').toString().trim();
-  const action = req.body.action;
+  const act = req.body.action;
   const room = rooms.get(code);
   if (!room) return res.json({ success: false });
 
-  // Update room persistent tokens on server for crash recovery
-  if (action.type === 'TOKEN_MOVED') {
-    const pTokens = room.tokens[action.color];
-    if (pTokens && pTokens[action.tokenId]) {
-      if (action.toStep !== undefined) {
-        pTokens[action.tokenId].step = action.toStep;
-      }
+  if (act.type === 'DICE_ROLLED') {
+    room.currentRoll = act.roll;
+  } else if (act.type === 'TOKEN_MOVED') {
+    if (room.tokens[act.color] && room.tokens[act.color][act.tokenId]) {
+      room.tokens[act.color][act.tokenId].step = act.toStep;
     }
+    // Turn alternate between Red and Yellow
+    if (!act.bonusTurn) {
+      room.activeColor = (act.color === 'red') ? 'yellow' : 'red';
+      room.currentRoll = null;
+    }
+  } else if (act.type === 'TURN_PASS') {
+    room.activeColor = (room.activeColor === 'red') ? 'yellow' : 'red';
+    room.currentRoll = null;
   }
 
-  action.id = 'act_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
-  action.timestamp = Date.now();
-  room.actions.push(action);
+  act.id = 'act_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+  act.timestamp = Date.now();
+  act.serverActiveColor = room.activeColor;
+  act.serverCurrentRoll = room.currentRoll;
+
+  room.actions.push(act);
   if (room.actions.length > 60) room.actions.shift();
   room.lastUpdated = Date.now();
 
   res.json({ success: true });
 });
 
-// 7. POLL & AUTO RESUME STATE
+// 7. REALTIME STATE POLL
 app.get('/api/poll/:roomCode', (req, res) => {
   const code = (req.params.roomCode || '').toString().trim();
   const room = rooms.get(code);
@@ -168,11 +170,13 @@ app.get('/api/poll/:roomCode', (req, res) => {
     success: true,
     players: room.players,
     gameStarted: room.gameStarted,
+    activeColor: room.activeColor,
+    currentRoll: room.currentRoll,
     tokens: room.tokens,
     actions: room.actions
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo Persistent Auth Engine active on port ${PORT}`);
+  console.log(`Ludo Real-time Engine running on port ${PORT}`);
 });
