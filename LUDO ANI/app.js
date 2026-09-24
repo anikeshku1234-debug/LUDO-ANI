@@ -1,3 +1,9 @@
+/**
+ * ============================================================================
+ * LUDO ROYALE - ACCURATE DEAD-CENTERED TOKENS CLIENT ENGINE
+ * ============================================================================
+ */
+
 (function () {
   'use strict';
 
@@ -109,10 +115,10 @@
   ];
 
   const COLOR_SPECS = {
-    red: { offset: 0 },
-    green: { offset: 13 },
+    red:    { offset: 0 },
+    green:  { offset: 13 },
     yellow: { offset: 26 },
-    blue: { offset: 39 }
+    blue:   { offset: 39 }
   };
 
   const SAFE_CELL_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
@@ -127,10 +133,10 @@
       return { row: r, col: c };
     } else {
       const dist = step - 51;
-      if (color === 'red') return { row: 13 - dist, col: 7 };
-      if (color === 'green') return { row: 7, col: dist + 1 };
+      if (color === 'red')    return { row: 13 - dist, col: 7 };
+      if (color === 'green')  return { row: 7, col: dist + 1 };
       if (color === 'yellow') return { row: dist + 1, col: 7 };
-      if (color === 'blue') return { row: 7, col: 13 - dist };
+      if (color === 'blue')   return { row: 7, col: 13 - dist };
     }
   }
 
@@ -238,27 +244,27 @@
     }
   }
 
+  // EXACT CENTER CALCULATION (SUBTRACTS BOARD BORDER OFFSET)
+  function getElementCenterInBoard(targetEl) {
+    const boardEl = document.getElementById('ludo-board');
+    const tRect = targetEl.getBoundingClientRect();
+    const bRect = boardEl.getBoundingClientRect();
+    return {
+      top: (tRect.top - bRect.top - boardEl.clientTop) + (tRect.height / 2),
+      left: (tRect.left - bRect.left - boardEl.clientLeft) + (tRect.width / 2)
+    };
+  }
+
   function getBaseSpotPixelCoords(color, index) {
     const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${index}"]`);
     if (!spot) return { top: 0, left: 0 };
-    const boardEl = document.getElementById('ludo-board');
-    const sRect = spot.getBoundingClientRect();
-    const bRect = boardEl.getBoundingClientRect();
-    return {
-      top: (sRect.top - bRect.top) + sRect.height / 2,
-      left: (sRect.left - bRect.left) + sRect.width / 2
-    };
+    return getElementCenterInBoard(spot);
   }
 
   function getCellPixelCoords(row, col) {
     const cell = document.getElementById(`cell-${row}-${col}`);
-    const boardEl = document.getElementById('ludo-board');
-    const cRect = cell.getBoundingClientRect();
-    const bRect = boardEl.getBoundingClientRect();
-    return {
-      top: (cRect.top - bRect.top) + cRect.height / 2,
-      left: (cRect.left - bRect.left) + cRect.width / 2
-    };
+    if (!cell) return { top: 0, left: 0 };
+    return getElementCenterInBoard(cell);
   }
 
   function renderTokensLayer() {
