@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LUDO ROYALE - MOBILE RESPONSIVE + VISIBLE DICE + ROUND 3D TOKENS
+   LUDO ROYALE - MOBILE OPTIMIZED + VISIBLE 3D ROUND COINS
    ========================================================================== */
 
 :root {
@@ -35,7 +35,6 @@ html, body {
   color: #ffffff;
 }
 
-/* Audio Autoplay Unblock Overlay */
 #audio-unlock-overlay {
   position: fixed;
   inset: 0;
@@ -54,21 +53,12 @@ html, body {
   max-width: 300px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.8);
 }
-.unlock-box h2 {
-  font-size: 22px;
-  color: #38bdf8;
-  margin-bottom: 8px;
-}
-.unlock-box p {
-  color: #94a3b8;
-  font-size: 13px;
-  margin-bottom: 18px;
-}
+.unlock-box h2 { font-size: 22px; color: #38bdf8; margin-bottom: 8px; }
+.unlock-box p { color: #94a3b8; font-size: 13px; margin-bottom: 18px; }
 
-/* Screens Layout */
 .screen-view {
   width: 100%;
-  height: 100dvh; /* Dynamic Viewport for Mobile Phones */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -88,7 +78,6 @@ html, body {
 .btn-secondary { background: #2563eb; color: #ffffff; }
 .btn-large { width: 100%; padding: 13px; font-size: 16px; }
 
-/* Lobby Screen */
 #lobby-screen {
   justify-content: center;
   padding: 16px;
@@ -134,17 +123,8 @@ html, body {
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-.section-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  margin-bottom: 6px;
-}
-.player-count-group {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
-}
+.section-label { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
+.player-count-group { display: flex; gap: 6px; margin-bottom: 12px; }
 .btn-count {
   flex: 1;
   padding: 8px;
@@ -160,12 +140,7 @@ html, body {
   color: #000000;
   border-color: #facc15;
 }
-.inputs-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
+.inputs-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .input-row {
   display: flex;
   align-items: center;
@@ -175,11 +150,7 @@ html, body {
   border-radius: 6px;
   border: 1px solid #334155;
 }
-.input-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
+.input-dot { width: 12px; height: 12px; border-radius: 50%; }
 .input-row input {
   flex: 1;
   background: transparent;
@@ -195,11 +166,7 @@ html, body {
   border-radius: 10px;
   margin-bottom: 6px;
 }
-.room-box h3 {
-  font-size: 12px;
-  color: #38bdf8;
-  margin-bottom: 6px;
-}
+.room-box h3 { font-size: 12px; color: #38bdf8; margin-bottom: 6px; }
 .room-box input {
   width: 100%;
   padding: 8px;
@@ -211,12 +178,7 @@ html, body {
   text-align: center;
   font-weight: bold;
 }
-.divider-text {
-  text-align: center;
-  color: #64748b;
-  font-size: 11px;
-  margin: 8px 0;
-}
+.divider-text { text-align: center; color: #64748b; font-size: 11px; margin: 8px 0; }
 .code-badge {
   margin-top: 8px;
   background: #0f172a;
@@ -227,7 +189,6 @@ html, body {
   letter-spacing: 2px;
 }
 
-/* TOP HUD */
 .game-hud {
   width: 100%;
   max-width: 420px;
@@ -249,11 +210,7 @@ html, body {
   color: white;
   cursor: pointer;
 }
-.hud-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.hud-left { display: flex; align-items: center; gap: 6px; }
 .room-indicator {
   font-size: 11px;
   font-weight: 800;
@@ -262,28 +219,17 @@ html, body {
   padding: 3px 6px;
   border-radius: 4px;
 }
-.turn-announcer {
-  text-align: center;
-}
-.turn-announcer .label {
-  display: block;
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #94a3b8;
-}
-.name-highlight {
-  font-size: 13px;
-  font-weight: 900;
-}
+.turn-announcer { text-align: center; }
+.turn-announcer .label { display: block; font-size: 8px; letter-spacing: 1px; color: #94a3b8; }
+.name-highlight { font-size: 13px; font-weight: 900; }
 
-/* BOARD CONTAINER (Mobile Screen Height Optimized) */
 .board-wrapper {
   width: 100%;
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 0; /* flex overflow prevent */
+  min-height: 0;
 }
 
 .ludo-board {
@@ -298,7 +244,6 @@ html, body {
   position: relative;
 }
 
-/* 4 CORNERS */
 .yard {
   position: absolute;
   width: 40%;
@@ -337,14 +282,17 @@ html, body {
   grid-template-rows: 1fr 1fr;
   place-items: center;
 }
+
+/* Spot Circles */
 .base-spot {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: visible !important;
 }
 .spot-green  { background: var(--ludo-green); }
 .spot-yellow { background: var(--ludo-yellow); border: 2px solid #ca8a04; }
@@ -371,7 +319,6 @@ html, body {
 .tri-green  { background: var(--ludo-green);  clip-path: polygon(0 100%, 0 0, 50% 50%); }
 .center-trophy { position: relative; z-index: 5; font-size: 15px; }
 
-/* Cells Grid */
 .cells-grid-layer {
   width: 100%;
   height: 100%;
@@ -391,6 +338,7 @@ html, body {
   font-size: 11px;
   font-weight: 800;
   position: relative;
+  overflow: visible !important;
 }
 .cell-red-path    { background: var(--ludo-red) !important; color: #ffffff; }
 .cell-green-path  { background: var(--ludo-green) !important; color: #ffffff; }
@@ -411,11 +359,11 @@ html, body {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 20;
+  z-index: 50;
 }
 
 /* ==========================================================================
-   ROUND (GOL) 3D TOKENS - CENTRALLY MOUNTED
+   ROUND (GOL) 3D TOKENS - HIGH CONTRAST & VISIBLE
    ========================================================================== */
 .ludo-token {
   position: absolute;
@@ -423,12 +371,12 @@ html, body {
   height: 22px;
   border-radius: 50% !important;
   transform: translate(-50%, -50%);
-  border: 2px solid #ffffff;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.7), inset 0 2px 3px rgba(255, 255, 255, 0.6);
+  border: 2.5px solid #ffffff !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.75), inset 0 2px 4px rgba(255, 255, 255, 0.7);
   cursor: pointer;
   pointer-events: auto;
-  transition: top 0.14s ease, left 0.14s ease, transform 0.14s ease;
-  z-index: 25;
+  transition: transform 0.12s ease;
+  z-index: 60 !important;
 }
 
 .ludo-token::after {
@@ -439,35 +387,33 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   transform: translate(-50%, -50%);
 }
 
-.token-red    { background: radial-gradient(circle at 35% 30%, #ff6b6b, #c9182b 75%, #7f1d1d); }
-.token-green  { background: radial-gradient(circle at 35% 30%, #4ade80, #0a8f3d 75%, #14532d); }
-.token-yellow { background: radial-gradient(circle at 35% 30%, #fef08a, #eab308 75%, #a16207); }
-.token-blue   { background: radial-gradient(circle at 35% 30%, #60a5fa, #0084ff 75%, #1e3a8a); }
+.token-red    { background: radial-gradient(circle at 35% 30%, #ff4d4d, #b91c1c 75%, #7f1d1d) !important; }
+.token-green  { background: radial-gradient(circle at 35% 30%, #4ade80, #15803d 75%, #14532d) !important; }
+.token-yellow { background: radial-gradient(circle at 35% 30%, #fde047, #ca8a04 75%, #854d0e) !important; }
+.token-blue   { background: radial-gradient(circle at 35% 30%, #60a5fa, #1d4ed8 75%, #1e3a8a) !important; }
 
-/* CHHOTA-BADA PULSING ON ACTIVE TURN */
+/* CHHOTA-BADA PULSING FOR ACTIVE TURN TOKENS */
 .token-selectable {
   animation: chhotaBadaPulse 0.5s infinite alternate ease-in-out !important;
   border-color: #fef08a !important;
-  z-index: 50 !important;
+  z-index: 99 !important;
 }
 @keyframes chhotaBadaPulse {
   0% {
-    transform: translate(-50%, -50%) scale(0.92);
+    transform: translate(-50%, -50%) scale(0.95);
     filter: drop-shadow(0 0 3px #fde047);
   }
   100% {
-    transform: translate(-50%, -50%) scale(1.42);
-    filter: drop-shadow(0 0 12px #facc15) brightness(1.2);
+    transform: translate(-50%, -50%) scale(1.4);
+    filter: drop-shadow(0 0 10px #facc15) brightness(1.25);
   }
 }
 
-/* ==========================================================================
-   BOTTOM DOCK (ALWAYS VISIBLE ON PHONE)
-   ========================================================================== */
+/* FOOTER DOCK */
 .game-footer-dock {
   width: 100%;
   max-width: 420px;
@@ -475,7 +421,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.95);
   border-radius: 12px 12px 0 0;
   border: 1px solid rgba(255,255,255,0.1);
   border-bottom: none;
@@ -501,18 +447,9 @@ html, body {
   display: flex;
   flex-direction: column;
 }
-.badge-names small {
-  font-size: 8px;
-  color: #7c2d12;
-  font-weight: 700;
-}
-.badge-names strong {
-  font-size: 13px;
-  color: #1e293b;
-  font-weight: 900;
-}
+.badge-names small { font-size: 8px; color: #7c2d12; font-weight: 700; }
+.badge-names strong { font-size: 13px; color: #1e293b; font-weight: 900; }
 
-/* DICE CONTROLS */
 .dice-station {
   display: flex;
   align-items: center;
