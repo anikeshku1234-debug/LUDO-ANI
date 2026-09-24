@@ -1,28 +1,17 @@
 /**
  * ============================================================================
- * LUDO ROYALE - CROSS-NETWORK STUN PEER ENGINE (LAPTOP + MOBILE INSTANT CONNECT)
+ * LUDO ROYALE - ULTRA-RELIABLE HTTP RELAY (LAPTOP + MOBILE 100% CONNECT)
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  let peer = null;
-  let activeConn = null;
-  let isHost = false;
+  let currentRoomCode = null;
   let myColor = 'red';
-  let onlinePlayers = [];
-
-  // Google Public STUN Configuration (Fixes Cross-Network Laptop + Mobile 5G)
-  const PEER_CONFIG = {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    }
-  };
+  let isOnline = false;
+  let pollingInterval = null;
+  let processedActionIds = new Set();
 
   const SoundManager = {
     ctx: null,
@@ -166,9 +155,9 @@
     winners: [],
     tokens: {},
 
-    init(configuredPlayers, isOnline = false, myOnlineColor = 'red') {
-      this.isOnline = isOnline;
-      this.myOnlineColor = myOnlineColor;
+    init(configuredPlayers, isOnlineMode = false, myOnlineClr = 'red') {
+      this.isOnline = isOnlineMode;
+      this.myOnlineColor = myOnlineClr;
       this.players = configuredPlayers;
       this.activePlayerIndices = configuredPlayers.map((_, idx) => idx);
       this.turnPointer = 0;
@@ -360,10 +349,14 @@
     tokenEl.style.left = `${baseCoords.left}px`;
   }
 
-  function sendP2PMessage(msg) {
-    if (activeConn && activeConn.open) {
-      activeConn.send(msg);
-    }
+  // HTTP ACTION SENDER
+  function broadcastOnlineAction(action) {
+    if (!currentRoomCode) return;
+    fetch('/api/send-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomCode: currentRoomCode, action: action })
+    }).catch(e => console.warn('Action sync error:', e));
   }
 
   async function onRollDiceTriggered() {
@@ -377,7 +370,7 @@
     applyDiceRoll(finalRoll);
 
     if (GameState.isOnline) {
-      sendP2PMessage({ type: 'DICE_ROLLED', roll: finalRoll });
+      broadcastOnlineAction({ type: 'DICE_ROLLED', roll: finalRoll });
     }
   }
 
@@ -422,7 +415,7 @@
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
       if (GameState.isOnline && currentPlayer.color === GameState.myOnlineColor) {
-        sendP2PMessage({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
+        broadcastOnlineAction({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
       }
     } else {
       highlightMovableTokens(currentPlayer.color, legalTokenIds);
@@ -447,7 +440,7 @@
     executeMove(color, id);
 
     if (GameState.isOnline) {
-      sendP2PMessage({ type: 'TOKEN_MOVED', color: color, tokenId: id });
+      broadcastOnlineAction({ type: 'TOKEN_MOVED', color: color, tokenId: id });
     }
   }
 
@@ -593,7 +586,7 @@
     modal.style.display = 'flex';
   }
 
-  function launchGameBoard(configuredPlayers, isOnline = false, myColor = 'red') {
+  function launchGameBoard(configuredPlayers, isOnlineMode = false, myOnlineClr = 'red') {
     ['red', 'green', 'yellow', 'blue'].forEach(c => {
       const label = document.getElementById(`label-${c}`);
       const p = configuredPlayers.find(x => x.color === c);
@@ -601,7 +594,7 @@
       else label.innerText = c.toUpperCase();
     });
 
-    GameState.init(configuredPlayers, isOnline, myColor);
+    GameState.init(configuredPlayers, isOnlineMode, myOnlineClr);
     document.getElementById('lobby-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
 
@@ -610,110 +603,68 @@
     syncUIWithTurn();
   }
 
-  function handleIncomingData(data) {
-    if (data.type === 'START_GAME') {
-      launchGameBoard(data.players, true, 'yellow');
-    } else if (data.type === 'DICE_ROLLED') {
-      applyDiceRoll(data.roll);
-    } else if (data.type === 'TOKEN_MOVED') {
-      executeMove(data.color, data.tokenId);
-    }
-  }
+  // ==========================================
+  // REALTIME POLLING RELAY ENGINE
+  // ==========================================
+  function startStatePolling(roomCode) {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/poll/${roomCode}`);
+        const data = await res.json();
+        if (!data.success) return;
 
-  // CROSS-NETWORK HOST SETUP (STUN ENABLED)
-  function setupHostP2P(hostName) {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    const peerId = `ludoroyale-room-${code}`;
-    
-    if (peer) peer.destroy();
-    peer = new Peer(peerId, PEER_CONFIG);
-    
-    peer.on('open', () => {
-      document.getElementById('display-room-code').innerText = code;
-      document.getElementById('created-code-box').style.display = 'block';
-      const btn = document.getElementById('btn-create-room');
-      btn.innerText = 'Waiting for Friend to Join...';
-      btn.disabled = true;
-    });
-
-    peer.on('connection', (conn) => {
-      activeConn = conn;
-      conn.on('open', () => {
-        conn.on('data', (data) => {
-          if (data.type === 'GUEST_JOINED') {
-            const guestName = data.name;
+        // Lobby Sync
+        if (!GameState.isOnline && !data.gameStarted) {
+          if (data.players.length >= 2) {
             const btn = document.getElementById('btn-create-room');
-            btn.innerText = `START GAME (${guestName} Connected!)`;
-            btn.disabled = false;
-            btn.classList.remove('btn-secondary');
-            btn.classList.add('btn-primary');
-
-            onlinePlayers = [
-              { id: 'host', name: hostName, color: 'red' },
-              { id: 'guest', name: guestName, color: 'yellow' }
-            ];
-
-            btn.onclick = () => {
-              sendP2PMessage({ type: 'START_GAME', players: onlinePlayers });
-              launchGameBoard(onlinePlayers, true, 'red');
-            };
-          } else {
-            handleIncomingData(data);
+            if (myColor === 'red') {
+              btn.innerText = `▶ START GAME (${data.players[1].name} Ready!)`;
+              btn.disabled = false;
+              btn.classList.remove('btn-secondary');
+              btn.classList.add('btn-primary');
+              btn.onclick = () => {
+                fetch('/api/start-game', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ roomCode: roomCode })
+                });
+                launchGameBoard(data.players, true, 'red');
+              };
+            }
           }
-        });
-      });
-    });
-
-    peer.on('error', (err) => {
-      console.warn('Host Peer error:', err);
-      alert('Room connect hone me dikkat aayi. Create Room dobara dabayein!');
-      document.getElementById('btn-create-room').innerText = 'CREATE ROOM';
-      document.getElementById('btn-create-room').disabled = false;
-    });
-  }
-
-  // CROSS-NETWORK GUEST SETUP (STUN ENABLED)
-  function setupGuestP2P(guestName, code) {
-    if (peer) peer.destroy();
-    peer = new Peer(PEER_CONFIG);
-    const targetPeerId = `ludoroyale-room-${code}`;
-
-    peer.on('open', () => {
-      const conn = peer.connect(targetPeerId, { reliable: true });
-      activeConn = conn;
-
-      conn.on('open', () => {
-        conn.send({ type: 'GUEST_JOINED', name: guestName });
-        document.getElementById('btn-join-room').innerText = '✓ Connected! Waiting for Host to Start...';
-        document.getElementById('btn-join-room').disabled = true;
-
-        conn.on('data', (data) => {
-          handleIncomingData(data);
-        });
-      });
-
-      // 8 second timeout agar room na mile
-      const timeout = setTimeout(() => {
-        if (!conn.open) {
-          alert(`Room (${code}) nahi mila! Kripya code check karein.`);
-          document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
-          document.getElementById('btn-join-room').disabled = false;
         }
-      }, 8000);
 
-      conn.on('open', () => clearTimeout(timeout));
-    });
+        // Both Devices Start Game Synchronously
+        if (!GameState.isOnline && data.gameStarted) {
+          launchGameBoard(data.players, true, myColor);
+        }
 
-    peer.on('error', (err) => {
-      console.warn('Guest Peer error:', err);
-      alert(`Room (${code}) nahi mila! Kripya sahi 4-digit code dalein.`);
-      document.getElementById('btn-join-room').innerText = 'JOIN ROOM';
-      document.getElementById('btn-join-room').disabled = false;
-    });
+        // Gameplay Remote Action Execution
+        if (data.actions && data.actions.length > 0) {
+          data.actions.forEach(act => {
+            if (!processedActionIds.has(act.id)) {
+              processedActionIds.add(act.id);
+              if (act.type === 'DICE_ROLLED') {
+                if (GameState.getCurrentPlayer().color !== myColor) {
+                  applyDiceRoll(act.roll);
+                }
+              } else if (act.type === 'TOKEN_MOVED') {
+                if (act.color !== myColor) {
+                  executeMove(act.color, act.tokenId);
+                }
+              }
+            }
+          });
+        }
+      } catch (err) {
+        // quiet retry
+      }
+    }, 450); // fast sync every 450ms
   }
 
+  // Pass & Play Mode
   let selectedCount = 3;
-
   function renderLobbyInputs(count) {
     const container = document.getElementById('player-inputs-container');
     container.innerHTML = '';
@@ -770,17 +721,40 @@
 
     document.getElementById('btn-start-passplay').addEventListener('click', startPassAndPlayMatch);
 
-    // Host Action
-    document.getElementById('btn-create-room').addEventListener('click', () => {
+    // CREATE ROOM (GUARANTEED HTTP)
+    document.getElementById('btn-create-room').addEventListener('click', async () => {
       SoundManager.init();
+      const btn = document.getElementById('btn-create-room');
       const name = document.getElementById('host-player-name').value.trim() || 'Host Player';
-      document.getElementById('btn-create-room').innerText = 'Generating 4-Digit Room...';
-      setupHostP2P(name);
+      btn.innerText = 'Creating Room...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/create-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hostName: name })
+        });
+        const data = await res.json();
+        if (data.success) {
+          currentRoomCode = data.roomCode;
+          myColor = 'red';
+          document.getElementById('display-room-code').innerText = data.roomCode;
+          document.getElementById('created-code-box').style.display = 'block';
+          btn.innerText = 'Waiting for Friend to Join...';
+          startStatePolling(data.roomCode);
+        }
+      } catch (err) {
+        alert('Server se connect nahi ho paya.');
+        btn.innerText = 'CREATE ROOM';
+        btn.disabled = false;
+      }
     });
 
-    // Join Action
-    document.getElementById('btn-join-room').addEventListener('click', () => {
+    // JOIN ROOM (GUARANTEED HTTP)
+    document.getElementById('btn-join-room').addEventListener('click', async () => {
       SoundManager.init();
+      const btn = document.getElementById('btn-join-room');
       const name = document.getElementById('join-player-name').value.trim() || 'Guest Player';
       const rawInput = document.getElementById('join-room-code').value || '';
       const code = rawInput.toString().trim().replace(/\s+/g, '');
@@ -789,9 +763,32 @@
         return alert('Kripya sahi 4-digit room code daalein (Jaise: 4821)!');
       }
 
-      document.getElementById('btn-join-room').innerText = 'Connecting...';
-      document.getElementById('btn-join-room').disabled = true;
-      setupGuestP2P(name, code);
+      btn.innerText = 'Connecting...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/join-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomCode: code, playerName: name })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert(data.message);
+          btn.innerText = 'JOIN ROOM';
+          btn.disabled = false;
+          return;
+        }
+
+        currentRoomCode = code;
+        myColor = 'yellow';
+        btn.innerText = '✓ Connected! Waiting for Host to Start...';
+        startStatePolling(code);
+      } catch (err) {
+        alert('Server se connect nahi ho paya.');
+        btn.innerText = 'JOIN ROOM';
+        btn.disabled = false;
+      }
     });
 
     document.getElementById('btn-roll-dice').addEventListener('click', onRollDiceTriggered);
@@ -831,6 +828,7 @@
       document.getElementById('settings-modal').style.display = 'none';
       document.getElementById('game-screen').style.display = 'none';
       document.getElementById('lobby-screen').style.display = 'flex';
+      if (pollingInterval) clearInterval(pollingInterval);
     });
 
     document.getElementById('btn-victory-replay').addEventListener('click', () => {
