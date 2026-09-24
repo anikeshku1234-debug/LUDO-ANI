@@ -29,7 +29,6 @@ app.get('/sw.js', (req, res) => {
 app.get('/logo-192.png', (req, res) => sendFileSafe('logo-192.png', 'image/png', res));
 app.get('/logo-512.png', (req, res) => sendFileSafe('logo-512.png', 'image/png', res));
 
-// IN-MEMORY REAL-TIME ROOM ENGINE
 const rooms = new Map();
 
 // 1. CREATE 4-DIGIT ROOM
@@ -65,7 +64,6 @@ app.post('/api/join-room', (req, res) => {
     return res.json({ success: false, message: 'Game pehle hi shuru ho chuka hai!' });
   }
 
-  // Agar guest pehle se na juda ho
   if (!room.players.some(p => p.id === 'guest')) {
     room.players.push({ id: 'guest', name: guestName, color: 'yellow' });
   }
@@ -81,28 +79,33 @@ app.post('/api/start-game', (req, res) => {
   if (!room) return res.json({ success: false });
 
   room.gameStarted = true;
-  room.actions.push({ type: 'GAME_STARTED', players: room.players, timestamp: Date.now() });
+  room.actions.push({
+    id: 'start_' + Date.now(),
+    type: 'START_MATCH',
+    players: room.players,
+    timestamp: Date.now()
+  });
   room.lastUpdated = Date.now();
   res.json({ success: true });
 });
 
-// 4. SEND ACTION (Dice Roll / Token Move)
+// 4. BROADCAST ACTION
 app.post('/api/send-action', (req, res) => {
   const code = (req.body.roomCode || '').toString().trim();
   const action = req.body.action;
   const room = rooms.get(code);
   if (!room) return res.json({ success: false });
 
+  action.id = 'act_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
   action.timestamp = Date.now();
-  action.id = Math.random().toString(36).substring(7);
   room.actions.push(action);
-  if (room.actions.length > 50) room.actions.shift(); // clean old
+  if (room.actions.length > 50) room.actions.shift();
   room.lastUpdated = Date.now();
 
   res.json({ success: true });
 });
 
-// 5. POLL STATE (Instant Cross-Device Sync)
+// 5. POLL STATE
 app.get('/api/poll/:roomCode', (req, res) => {
   const code = (req.params.roomCode || '').toString().trim();
   const room = rooms.get(code);
@@ -117,5 +120,5 @@ app.get('/api/poll/:roomCode', (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Ludo HTTP-Relay Engine running on port ${PORT}`);
+  console.log(`Ludo Real-time Server running on port ${PORT}`);
 });
