@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - ACCURATE DEAD-CENTERED TOKENS CLIENT ENGINE
+ * LUDO ROYALE - CHHOTA-BADA PULSING HIGHLIGHT CLIENT ENGINE
  * ============================================================================
  */
 
@@ -196,6 +196,8 @@
     advanceTurn() {
       this.diceValue = null;
       this.consecutiveSixes = 0;
+      clearTokenHighlights();
+
       if (this.winners.length >= this.players.length - 1) return;
 
       let count = this.activePlayerIndices.length;
@@ -244,7 +246,6 @@
     }
   }
 
-  // EXACT CENTER CALCULATION (SUBTRACTS BOARD BORDER OFFSET)
   function getElementCenterInBoard(targetEl) {
     const boardEl = document.getElementById('ludo-board');
     const tRect = targetEl.getBoundingClientRect();
@@ -372,6 +373,7 @@
   async function applyDiceRoll(finalRoll) {
     GameState.isRolling = true;
     setDiceInteractionEnabled(false);
+    clearTokenHighlights();
 
     SoundManager.playDiceRattle();
     const diceEl = document.getElementById('dice-3d-box');
@@ -403,17 +405,19 @@
       GameState.advanceTurn();
       syncUIWithTurn();
     } else if (legalTokenIds.length === 1) {
-      await new Promise(res => setTimeout(res, 350));
+      // Highlight the single movable token briefly so user sees which token is moving
+      highlightMovableTokens(currentPlayer.color, legalTokenIds);
+      await new Promise(res => setTimeout(res, 450));
+      clearTokenHighlights();
       executeMove(currentPlayer.color, legalTokenIds[0]);
 
       if (GameState.isOnline && currentPlayer.color === GameState.myOnlineColor) {
         sendP2PMessage({ type: 'TOKEN_MOVED', color: currentPlayer.color, tokenId: legalTokenIds[0] });
       }
     } else {
-      if (!GameState.isOnline || currentPlayer.color === GameState.myOnlineColor) {
-        highlightMovableTokens(currentPlayer.color, legalTokenIds);
-        showTurnNotification("Select a Token to Move");
-      }
+      // Multiple options available: Start the chhota-bada pulsing animation!
+      highlightMovableTokens(currentPlayer.color, legalTokenIds);
+      showTurnNotification("Select a Token to Move");
     }
   }
 
@@ -518,7 +522,9 @@
   }
 
   function clearTokenHighlights() {
-    document.querySelectorAll('.token-selectable').forEach(el => el.classList.remove('token-selectable'));
+    document.querySelectorAll('.token-selectable').forEach(el => {
+      el.classList.remove('token-selectable');
+    });
   }
 
   function syncUIWithTurn() {
