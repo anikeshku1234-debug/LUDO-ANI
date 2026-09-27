@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH STEP-BY-STEP PUK & REVERSE REWIND ANIMATION
+ * LUDO ROYALE - PASS & PLAY FIXED + UNTOUCHED 100% ONLINE ENGINE
  * ============================================================================
  */
 
@@ -48,11 +48,11 @@
       const gain = this.ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(320, now);
-      osc.frequency.exponentialRampToValueAtTime(70, now + 0.07);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.06);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.07);
+      osc.start(now); osc.stop(now + 0.06);
     },
     playReleaseYes() {
       if (!this.enabled || !this.ctx) return;
@@ -141,19 +141,23 @@
     isAnimating: false,
     tokens: {
       red: [-1, -1, -1, -1],
-      yellow: [-1, -1, -1, -1]
+      yellow: [-1, -1, -1, -1],
+      green: [-1, -1, -1, -1],
+      blue: [-1, -1, -1, -1]
     },
 
     init(configuredPlayers, isOnlineMode = false) {
       this.isOnline = isOnlineMode;
       this.players = configuredPlayers;
-      this.activeColor = 'red';
+      this.activeColor = configuredPlayers[0].color;
       this.diceValue = null;
       this.isRolling = false;
       this.isAnimating = false;
       this.tokens = {
         red: [-1, -1, -1, -1],
-        yellow: [-1, -1, -1, -1]
+        yellow: [-1, -1, -1, -1],
+        green: [-1, -1, -1, -1],
+        blue: [-1, -1, -1, -1]
       };
     },
 
@@ -163,7 +167,7 @@
     },
 
     getLegalMoves(color, roll) {
-      const list = this.tokens[color];
+      const list = this.tokens[color] || [];
       const valid = [];
       list.forEach((step, id) => {
         if (this.canTokenMove(step, roll)) valid.push(id);
@@ -230,7 +234,8 @@
   function createAllTokens() {
     document.querySelectorAll('.ludo-token').forEach(el => el.remove());
 
-    ['red', 'yellow'].forEach(color => {
+    const activeColors = GameState.players.map(p => p.color);
+    activeColors.forEach(color => {
       for (let i = 0; i < 4; i++) {
         const tok = document.createElement('div');
         tok.className = `ludo-token token-${color}`;
@@ -244,9 +249,10 @@
   }
 
   function updateTokensView() {
-    if (GameState.isAnimating) return; // Animation ke dauran view override na ho
-    ['red', 'yellow'].forEach(color => {
-      const steps = GameState.tokens[color];
+    if (GameState.isAnimating) return;
+    const activeColors = GameState.players.map(p => p.color);
+    activeColors.forEach(color => {
+      const steps = GameState.tokens[color] || [];
       steps.forEach((step, i) => {
         let tok = document.getElementById(`token-${color}-${i}`);
         if (!tok) {
@@ -298,6 +304,8 @@
   // 5. GAMEPLAY ACTIONS
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
+    
+    // Online check
     if (GameState.isOnline && GameState.activeColor !== myColor) return;
 
     const roll = Math.floor(Math.random() * 6) + 1;
@@ -341,8 +349,7 @@
           body: JSON.stringify({ roomCode: currentRoomCode, action: { type: 'TURN_PASS' } })
         });
       } else {
-        GameState.activeColor = (color === 'red') ? 'yellow' : 'red';
-        syncUIWithTurn();
+        advancePassPlayTurn();
       }
     } else if (legalTokens.length === 1) {
       await new Promise(res => setTimeout(res, 350));
@@ -379,7 +386,6 @@
     let grantBonus = (roll === 6);
     let cutRival = false;
     let cutTokenId = -1;
-    let cutFromStep = -1;
 
     if (fromStep === -1 && roll === 6) {
       toStep = 0;
@@ -393,19 +399,24 @@
       } else if (toStep < 51) {
         const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
         if (!SAFE_CELL_INDICES.includes(myGlobal)) {
-          const rival = (color === 'red') ? 'yellow' : 'red';
-          for (let rId = 0; rId < 4; rId++) {
-            const rStep = GameState.tokens[rival][rId];
-            if (rStep >= 0 && rStep < 51) {
-              const rivalGlobal = (COLOR_SPECS[rival].offset + rStep) % 52;
-              if (rivalGlobal === myGlobal) {
-                grantBonus = true;
-                cutRival = true;
-                cutTokenId = rId;
-                cutFromStep = rStep;
-                GameState.tokens[rival][rId] = -1;
-                await animateReverseRewind(rival, rId, rStep);
-                break;
+          // Pass & Play and Online rival check
+          const rivalPlayers = GameState.players.filter(p => p.color !== color);
+          for (let rp of rivalPlayers) {
+            const rival = rp.color;
+            if (GameState.tokens[rival]) {
+              for (let rId = 0; rId < 4; rId++) {
+                const rStep = GameState.tokens[rival][rId];
+                if (rStep >= 0 && rStep < 51) {
+                  const rivalGlobal = (COLOR_SPECS[rival].offset + rStep) % 52;
+                  if (rivalGlobal === myGlobal) {
+                    grantBonus = true;
+                    cutRival = true;
+                    cutTokenId = rId;
+                    GameState.tokens[rival][rId] = -1;
+                    await animateReverseRewind(rival, rId, rStep);
+                    break;
+                  }
+                }
               }
             }
           }
@@ -438,12 +449,24 @@
     GameState.diceValue = null;
     GameState.isAnimating = false;
 
+    // PASS & PLAY TURN ADVANCE FIX
     if (!GameState.isOnline) {
       if (!grantBonus) {
-        GameState.activeColor = (color === 'red') ? 'yellow' : 'red';
+        advancePassPlayTurn();
+      } else {
+        syncUIWithTurn();
       }
-      syncUIWithTurn();
     }
+  }
+
+  // Pass & Play Specific Turn Cycle
+  function advancePassPlayTurn() {
+    GameState.diceValue = null;
+    const playerColors = GameState.players.map(p => p.color);
+    let curIndex = playerColors.indexOf(GameState.activeColor);
+    curIndex = (curIndex + 1) % playerColors.length;
+    GameState.activeColor = playerColors[curIndex];
+    syncUIWithTurn();
   }
 
   function highlightMovableTokens(color, tokenIds) {
@@ -471,6 +494,7 @@
     document.getElementById('footer-player-title').innerText = playerObj.name;
     document.getElementById('badge-pin-icon').className = `pin-sample token-${curColor}`;
 
+    // Pass & Play mode me saare turns playable hote hain
     const isMyTurn = !GameState.isOnline || (curColor === myColor);
     document.getElementById('footer-player-status').innerText = isMyTurn ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
     setDiceInteractionEnabled(isMyTurn && !GameState.diceValue && !GameState.isAnimating);
@@ -508,7 +532,7 @@
     syncUIWithTurn();
   }
 
-  // 6. REALTIME STATE REPLICATION
+  // 6. REALTIME ONLINE STATE REPLICATION (UNTOUCHED)
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -547,7 +571,6 @@
         if (isBoardLaunched && data.version !== lastServerVersion) {
           lastServerVersion = data.version;
 
-          // Animate opponent move if changed
           if (data.tokens && !GameState.isAnimating) {
             ['red', 'yellow'].forEach(c => {
               if (c !== myColor) {
@@ -555,10 +578,8 @@
                   const oldStep = GameState.tokens[c][i];
                   if (newStep !== oldStep) {
                     if (newStep === -1 && oldStep >= 0) {
-                      // Opponent goti kategi toh reverse rewind chalega
                       await animateReverseRewind(c, i, oldStep);
                     } else if (newStep > oldStep || (oldStep === -1 && newStep === 0)) {
-                      // Opponent ki goti puk puk karte hue badhegi
                       await animateForwardSteps(c, i, oldStep, newStep);
                     }
                     GameState.tokens[c][i] = newStep;
@@ -588,7 +609,7 @@
     }, 300);
   }
 
-  // Pass & Play Mode
+  // Pass & Play Mode Selection
   let selectedCount = 3;
   function renderLobbyInputs(count) {
     const container = document.getElementById('player-inputs-container');
