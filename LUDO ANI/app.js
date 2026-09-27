@@ -1,6 +1,7 @@
 /**
  * ============================================================================
- * LUDO ROYALE - PASS & PLAY FIXED + UNTOUCHED 100% ONLINE ENGINE
+ * LUDO ROYALE - COMPLETE ENGINE WITH WEIGHTED DICE, DOUBLE TOKEN BLOCK, 
+ * 3-SIX PENALTY & FULL ONLINE SOUND SYNCHRONIZATION
  * ============================================================================
  */
 
@@ -81,6 +82,21 @@
       osc.connect(gain); gain.connect(this.ctx.destination);
       osc.start(now); osc.stop(now + 0.48);
     },
+    playHomeChime() {
+      if (!this.enabled || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+        gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.35);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.35);
+      });
+    },
     playVictory() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
@@ -137,6 +153,7 @@
     players: [],
     activeColor: 'red',
     diceValue: null,
+    consecutiveSixes: 0,
     isRolling: false,
     isAnimating: false,
     tokens: {
@@ -151,6 +168,7 @@
       this.players = configuredPlayers;
       this.activeColor = configuredPlayers[0].color;
       this.diceValue = null;
+      this.consecutiveSixes = 0;
       this.isRolling = false;
       this.isAnimating = false;
       this.tokens = {
@@ -175,6 +193,17 @@
       return valid;
     }
   };
+
+  // WEIGHTED DICE ROLL (6: +10%, 2: -10%)
+  function getBiasedDiceRoll() {
+    const r = Math.random() * 100;
+    if (r < 16.67) return 1;
+    if (r < 23.34) return 2;       // 6.67% (-10%)
+    if (r < 40.01) return 3;
+    if (r < 56.68) return 4;
+    if (r < 73.35) return 5;
+    return 6;                      // 26.65% (+10%)
+  }
 
   function buildBoardGrid() {
     const layer = document.getElementById('cells-layer');
@@ -209,7 +238,6 @@
     }
   }
 
-  // DOM Mount Placement
   function mountTokenToTarget(tokenEl, color, step, id) {
     if (step === -1) {
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
@@ -268,7 +296,7 @@
     });
   }
 
-  // 4. ANIMATION HELPERS (Step puk & Reverse Rewind)
+  // 4. ANIMATION HELPERS (Step puk, Reverse Rewind & Home sound)
   async function animateForwardSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -284,6 +312,11 @@
       await new Promise(res => setTimeout(res, 140));
       SoundManager.playStepPuk();
       mountTokenToTarget(tokenEl, color, s, tokenId);
+    }
+
+    // AWAAJ JAB GOTI LAAL HO JAYE (DESTINATION PAR LAND)
+    if (toStep === 56) {
+      SoundManager.playHomeChime();
     }
     await new Promise(res => setTimeout(res, 100));
   }
@@ -304,11 +337,9 @@
   // 5. GAMEPLAY ACTIONS
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating) return;
-    
-    // Online check
     if (GameState.isOnline && GameState.activeColor !== myColor) return;
 
-    const roll = Math.floor(Math.random() * 6) + 1;
+    const roll = getBiasedDiceRoll();
     GameState.isRolling = true;
     setDiceInteractionEnabled(false);
 
@@ -321,6 +352,30 @@
     diceEl.className = `dice-cube show-${roll}`;
     GameState.diceValue = roll;
     GameState.isRolling = false;
+
+    // 3 CONSECUTIVE 6s RULE
+    if (roll === 6) {
+      GameState.consecutiveSixes++;
+    } else {
+      GameState.consecutiveSixes = 0; // 2 baar 6 ke baad koi aur number aane pe reset
+    }
+
+    if (GameState.consecutiveSixes === 3) {
+      showTurnNotification("3 Baar 6 Aaya! Turn Cancelled");
+      GameState.consecutiveSixes = 0;
+      await new Promise(res => setTimeout(res, 900));
+
+      if (GameState.isOnline) {
+        fetch('/api/send-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomCode: currentRoomCode, action: { type: 'TURN_PASS' } })
+        });
+      } else {
+        advancePassPlayTurn();
+      }
+      return;
+    }
 
     if (GameState.isOnline) {
       fetch('/api/send-action', {
@@ -395,28 +450,46 @@
       await animateForwardSteps(color, tokenId, fromStep, toStep);
 
       if (toStep === 56) {
-        grantBonus = true;
+        grantBonus = true; // Destination laal hone pe bonus turn
       } else if (toStep < 51) {
         const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
+
+        // DOUBLE TOKEN BLOCK RULE CHECK
         if (!SAFE_CELL_INDICES.includes(myGlobal)) {
-          // Pass & Play and Online rival check
           const rivalPlayers = GameState.players.filter(p => p.color !== color);
           for (let rp of rivalPlayers) {
             const rival = rp.color;
             if (GameState.tokens[rival]) {
+              // Count rival tokens on target cell
+              const matchingRivalIds = [];
               for (let rId = 0; rId < 4; rId++) {
                 const rStep = GameState.tokens[rival][rId];
                 if (rStep >= 0 && rStep < 51) {
                   const rivalGlobal = (COLOR_SPECS[rival].offset + rStep) % 52;
                   if (rivalGlobal === myGlobal) {
-                    grantBonus = true;
-                    cutRival = true;
-                    cutTokenId = rId;
-                    GameState.tokens[rival][rId] = -1;
-                    await animateReverseRewind(rival, rId, rStep);
-                    break;
+                    matchingRivalIds.push(rId);
                   }
                 }
+              }
+
+              // Count my tokens already on target cell
+              let myTokensOnCell = 1; // current moving token
+              for (let mId = 0; mId < 4; mId++) {
+                if (mId !== tokenId && GameState.tokens[color][mId] === toStep) {
+                  myTokensOnCell++;
+                }
+              }
+
+              // Agar rival ki 2 goti hai, toh akeli goti nahi kaat sakti; sirf 2 goti se kategi
+              if (matchingRivalIds.length === 1 || (matchingRivalIds.length >= 2 && myTokensOnCell >= 2)) {
+                for (let rId of matchingRivalIds) {
+                  grantBonus = true;
+                  cutRival = true;
+                  cutTokenId = rId;
+                  GameState.tokens[rival][rId] = -1;
+                  await animateReverseRewind(rival, rId, GameState.tokens[rival][rId] >= 0 ? GameState.tokens[rival][rId] : toStep);
+                }
+                break;
               }
             }
           }
@@ -449,7 +522,6 @@
     GameState.diceValue = null;
     GameState.isAnimating = false;
 
-    // PASS & PLAY TURN ADVANCE FIX
     if (!GameState.isOnline) {
       if (!grantBonus) {
         advancePassPlayTurn();
@@ -459,9 +531,9 @@
     }
   }
 
-  // Pass & Play Specific Turn Cycle
   function advancePassPlayTurn() {
     GameState.diceValue = null;
+    GameState.consecutiveSixes = 0;
     const playerColors = GameState.players.map(p => p.color);
     let curIndex = playerColors.indexOf(GameState.activeColor);
     curIndex = (curIndex + 1) % playerColors.length;
@@ -494,7 +566,6 @@
     document.getElementById('footer-player-title').innerText = playerObj.name;
     document.getElementById('badge-pin-icon').className = `pin-sample token-${curColor}`;
 
-    // Pass & Play mode me saare turns playable hote hain
     const isMyTurn = !GameState.isOnline || (curColor === myColor);
     document.getElementById('footer-player-status').innerText = isMyTurn ? 'ROLL THE DICE' : 'WAITING FOR OPPONENT...';
     setDiceInteractionEnabled(isMyTurn && !GameState.diceValue && !GameState.isAnimating);
@@ -532,7 +603,7 @@
     syncUIWithTurn();
   }
 
-  // 6. REALTIME ONLINE STATE REPLICATION (UNTOUCHED)
+  // 6. REALTIME ONLINE STATE REPLICATION
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -595,7 +666,11 @@
 
           GameState.activeColor = data.activeColor;
 
+          // OPPONENT KE PAASA CHALNE PAR REAL-TIME SOUND + DISPLAY
           if (data.diceValue) {
+            if (data.activeColor !== myColor && GameState.diceValue !== data.diceValue) {
+              SoundManager.playDiceRattle(); // Sound on opponent roll
+            }
             GameState.diceValue = data.diceValue;
             const diceEl = document.getElementById('dice-3d-box');
             diceEl.className = `dice-cube show-${data.diceValue}`;
