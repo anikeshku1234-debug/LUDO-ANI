@@ -1,7 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH WEIGHTED DICE, DOUBLE TOKEN BLOCK, 
- * 3-SIX PENALTY & FULL ONLINE SOUND SYNCHRONIZATION
+ * LUDO ROYALE - COMPLETE ENGINE WITH 1/4 SECOND DELAY REVERSE CAPTURE ANIMATION
  * ============================================================================
  */
 
@@ -76,11 +75,11 @@
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(950, now);
-      osc.frequency.exponentialRampToValueAtTime(110, now + 0.48);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.48);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.55);
+      gain.gain.setValueAtTime(0.32, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.48);
+      osc.start(now); osc.stop(now + 0.55);
     },
     playHomeChime() {
       if (!this.enabled || !this.ctx) return;
@@ -296,7 +295,7 @@
     });
   }
 
-  // 4. ANIMATION HELPERS (Step puk, Reverse Rewind & Home sound)
+  // 4. ANIMATION HELPERS (Step puk, 1/4s Delay + Reverse Rewind & Home sound)
   async function animateForwardSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -314,16 +313,19 @@
       mountTokenToTarget(tokenEl, color, s, tokenId);
     }
 
-    // AWAAJ JAB GOTI LAAL HO JAYE (DESTINATION PAR LAND)
     if (toStep === 56) {
       SoundManager.playHomeChime();
     }
     await new Promise(res => setTimeout(res, 100));
   }
 
+  // 1/4 SECOND DELAY KE SAATH REVERSE REWIND & SUUUU SOUND
   async function animateReverseRewind(color, tokenId, fromStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
+
+    // Theek 1/4 second (250ms) rukega katne ke baad
+    await new Promise(res => setTimeout(res, 250));
 
     SoundManager.playCaptureSuuu();
     for (let s = fromStep - 1; s >= 0; s--) {
@@ -357,7 +359,7 @@
     if (roll === 6) {
       GameState.consecutiveSixes++;
     } else {
-      GameState.consecutiveSixes = 0; // 2 baar 6 ke baad koi aur number aane pe reset
+      GameState.consecutiveSixes = 0;
     }
 
     if (GameState.consecutiveSixes === 3) {
@@ -450,7 +452,7 @@
       await animateForwardSteps(color, tokenId, fromStep, toStep);
 
       if (toStep === 56) {
-        grantBonus = true; // Destination laal hone pe bonus turn
+        grantBonus = true;
       } else if (toStep < 51) {
         const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
 
@@ -460,7 +462,6 @@
           for (let rp of rivalPlayers) {
             const rival = rp.color;
             if (GameState.tokens[rival]) {
-              // Count rival tokens on target cell
               const matchingRivalIds = [];
               for (let rId = 0; rId < 4; rId++) {
                 const rStep = GameState.tokens[rival][rId];
@@ -472,22 +473,21 @@
                 }
               }
 
-              // Count my tokens already on target cell
-              let myTokensOnCell = 1; // current moving token
+              let myTokensOnCell = 1;
               for (let mId = 0; mId < 4; mId++) {
                 if (mId !== tokenId && GameState.tokens[color][mId] === toStep) {
                   myTokensOnCell++;
                 }
               }
 
-              // Agar rival ki 2 goti hai, toh akeli goti nahi kaat sakti; sirf 2 goti se kategi
               if (matchingRivalIds.length === 1 || (matchingRivalIds.length >= 2 && myTokensOnCell >= 2)) {
                 for (let rId of matchingRivalIds) {
                   grantBonus = true;
                   cutRival = true;
                   cutTokenId = rId;
+                  const cutOriginStep = GameState.tokens[rival][rId] >= 0 ? GameState.tokens[rival][rId] : toStep;
                   GameState.tokens[rival][rId] = -1;
-                  await animateReverseRewind(rival, rId, GameState.tokens[rival][rId] >= 0 ? GameState.tokens[rival][rId] : toStep);
+                  await animateReverseRewind(rival, rId, cutOriginStep);
                 }
                 break;
               }
@@ -649,6 +649,7 @@
                   const oldStep = GameState.tokens[c][i];
                   if (newStep !== oldStep) {
                     if (newStep === -1 && oldStep >= 0) {
+                      // Opponent goti katne par 1/4 second delay + suuuuu sound ke sath ghar lautegi
                       await animateReverseRewind(c, i, oldStep);
                     } else if (newStep > oldStep || (oldStep === -1 && newStep === 0)) {
                       await animateForwardSteps(c, i, oldStep, newStep);
@@ -666,10 +667,9 @@
 
           GameState.activeColor = data.activeColor;
 
-          // OPPONENT KE PAASA CHALNE PAR REAL-TIME SOUND + DISPLAY
           if (data.diceValue) {
             if (data.activeColor !== myColor && GameState.diceValue !== data.diceValue) {
-              SoundManager.playDiceRattle(); // Sound on opponent roll
+              SoundManager.playDiceRattle();
             }
             GameState.diceValue = data.diceValue;
             const diceEl = document.getElementById('dice-3d-box');
