@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LUDO ROYALE - MOBILE OPTIMIZED + VISIBLE 3D ROUND COINS
+   LUDO ROYALE - MOBILE OPTIMIZED + MULTI-TOKEN STACKING + HOME COUNTER
    ========================================================================== */
 
 :root {
@@ -283,7 +283,6 @@ html, body {
   place-items: center;
 }
 
-/* Spot Circles */
 .base-spot {
   width: 28px;
   height: 28px;
@@ -299,6 +298,7 @@ html, body {
 .spot-red    { background: var(--ludo-red); border: 2px solid #991b1b; }
 .spot-blue   { background: var(--ludo-blue); }
 
+/* Center Triangle with Home/Laal Counters */
 .board-center-triangle {
   position: absolute;
   top: 40%;
@@ -312,12 +312,35 @@ html, body {
   justify-content: center;
   align-items: center;
 }
-.triangle-part { position: absolute; width: 100%; height: 100%; }
+.triangle-part {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 .tri-yellow { background: var(--ludo-yellow); clip-path: polygon(0 0, 100% 0, 50% 50%); }
 .tri-blue   { background: var(--ludo-blue);   clip-path: polygon(100% 0, 100% 100%, 50% 50%); }
 .tri-red    { background: var(--ludo-red);    clip-path: polygon(100% 100%, 0 100%, 50% 50%); }
 .tri-green  { background: var(--ludo-green);  clip-path: polygon(0 100%, 0 0, 50% 50%); }
-.center-trophy { position: relative; z-index: 5; font-size: 15px; }
+
+.home-count-badge {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  z-index: 7;
+}
+#home-count-yellow { top: 3px; color: #000; background: rgba(255, 255, 255, 0.7); }
+#home-count-red    { bottom: 3px; }
+#home-count-green  { left: 3px; }
+#home-count-blue   { right: 3px; }
+
+.center-trophy { position: relative; z-index: 5; font-size: 14px; }
 
 .cells-grid-layer {
   width: 100%;
@@ -352,18 +375,8 @@ html, body {
 }
 .arrow-symbol { font-size: 12px; font-weight: 900; }
 
-.tokens-interactive-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 50;
-}
-
 /* ==========================================================================
-   ROUND (GOL) 3D TOKENS - HIGH CONTRAST & VISIBLE
+   ROUND (GOL) 3D TOKENS WITH MULTI-TOKEN ADAPTIVE SIZING
    ========================================================================== */
 .ludo-token {
   position: absolute;
@@ -375,7 +388,7 @@ html, body {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.75), inset 0 2px 4px rgba(255, 255, 255, 0.7);
   cursor: pointer;
   pointer-events: auto;
-  transition: transform 0.12s ease;
+  transition: transform 0.16s ease, top 0.16s ease, left 0.16s ease, width 0.16s ease, height 0.16s ease;
   z-index: 60 !important;
 }
 
@@ -396,6 +409,18 @@ html, body {
 .token-yellow { background: radial-gradient(circle at 35% 30%, #fde047, #ca8a04 75%, #854d0e) !important; }
 .token-blue   { background: radial-gradient(circle at 35% 30%, #60a5fa, #1d4ed8 75%, #1e3a8a) !important; }
 
+/* SMALL ADAPTIVE SIZE JAB EK CELL PAR 1 SE ZYADA GOTI HO */
+.ludo-token.token-stacked {
+  width: 15px !important;
+  height: 15px !important;
+  border-width: 1.5px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.8) !important;
+}
+.ludo-token.token-stacked::after {
+  width: 4px !important;
+  height: 4px !important;
+}
+
 /* CHHOTA-BADA PULSING FOR ACTIVE TURN TOKENS */
 .token-selectable {
   animation: chhotaBadaPulse 0.5s infinite alternate ease-in-out !important;
@@ -413,7 +438,6 @@ html, body {
   }
 }
 
-/* FOOTER DOCK */
 .game-footer-dock {
   width: 100%;
   max-width: 420px;
@@ -526,7 +550,6 @@ html, body {
   100% { transform: scale(1); }
 }
 
-/* Modals */
 .modal-backdrop {
   position: fixed;
   inset: 0;
