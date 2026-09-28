@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH 1/4 SECOND DELAY REVERSE CAPTURE ANIMATION
+ * LUDO ROYALE - COMPLETE ENGINE WITH MULTI-TOKEN AUTO-STACKING & HOME COUNTER
  * ============================================================================
  */
 
@@ -75,11 +75,11 @@
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(950, now);
-      osc.frequency.exponentialRampToValueAtTime(110, now + 0.55);
-      gain.gain.setValueAtTime(0.32, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.48);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.48);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.55);
+      osc.start(now); osc.stop(now + 0.48);
     },
     playHomeChime() {
       if (!this.enabled || !this.ctx) return;
@@ -197,11 +197,11 @@
   function getBiasedDiceRoll() {
     const r = Math.random() * 100;
     if (r < 16.67) return 1;
-    if (r < 23.34) return 2;       // 6.67% (-10%)
+    if (r < 23.34) return 2;
     if (r < 40.01) return 3;
     if (r < 56.68) return 4;
     if (r < 73.35) return 5;
-    return 6;                      // 26.65% (+10%)
+    return 6;
   }
 
   function buildBoardGrid() {
@@ -235,6 +235,85 @@
         layer.appendChild(cell);
       }
     }
+
+    // Add Live Home / Laal Counters to Center Triangles
+    injectHomeCounters();
+  }
+
+  function injectHomeCounters() {
+    ['red', 'yellow', 'green', 'blue'].forEach(c => {
+      const tri = document.querySelector(`.tri-${c}`);
+      if (tri && !document.getElementById(`home-count-${c}`)) {
+        const badge = document.createElement('div');
+        badge.id = `home-count-${c}`;
+        badge.className = 'home-count-badge';
+        badge.innerText = '0/4';
+        tri.appendChild(badge);
+      }
+    });
+  }
+
+  // Update Live Middle Destination Counter
+  function updateHomeCounters() {
+    ['red', 'yellow', 'green', 'blue'].forEach(c => {
+      const b = document.getElementById(`home-count-${c}`);
+      if (b && GameState.tokens[c]) {
+        const homeTokens = GameState.tokens[c].filter(s => s === 56).length;
+        b.innerText = `${homeTokens}/4`;
+        if (homeTokens > 0) {
+          b.style.display = 'block';
+        }
+      }
+    });
+  }
+
+  // MULTI-TOKEN DYNAMIC STACKING (Auto-Resize jab ek cell par 1 se zyada goti ho)
+  function applyStackedPositions() {
+    // 1. Group tokens by cell container
+    const cellGroups = new Map();
+
+    const activeColors = GameState.players.map(p => p.color);
+    activeColors.forEach(color => {
+      for (let i = 0; i < 4; i++) {
+        const tok = document.getElementById(`token-${color}-${i}`);
+        if (tok && tok.parentElement) {
+          const parent = tok.parentElement;
+          if (!cellGroups.has(parent)) {
+            cellGroups.set(parent, []);
+          }
+          cellGroups.get(parent).push(tok);
+        }
+      }
+    });
+
+    // 2. Adjust size and grid offset
+    cellGroups.forEach((tokens, parent) => {
+      const count = tokens.length;
+      if (count <= 1 || parent.classList.contains('base-spot')) {
+        tokens.forEach(tok => {
+          tok.classList.remove('token-stacked');
+          tok.style.top = '50%';
+          tok.style.left = '50%';
+        });
+      } else {
+        // Multi-tokens stacked: Shrink to make all visible
+        tokens.forEach((tok, idx) => {
+          tok.classList.add('token-stacked');
+          if (count === 2) {
+            tok.style.top = '50%';
+            tok.style.left = idx === 0 ? '30%' : '70%';
+          } else if (count === 3) {
+            if (idx === 0) { tok.style.top = '28%'; tok.style.left = '50%'; }
+            else if (idx === 1) { tok.style.top = '72%'; tok.style.left = '30%'; }
+            else { tok.style.top = '72%'; tok.style.left = '70%'; }
+          } else {
+            // 4 tokens
+            tok.style.top = idx < 2 ? '28%' : '72%';
+            tok.style.left = idx % 2 === 0 ? '28%' : '72%';
+          }
+        });
+      }
+    });
   }
 
   function mountTokenToTarget(tokenEl, color, step, id) {
@@ -242,6 +321,7 @@
       const spot = document.querySelector(`.base-spot[data-color="${color}"][data-index="${id}"]`);
       if (spot && tokenEl.parentElement !== spot) {
         spot.appendChild(tokenEl);
+        tokenEl.classList.remove('token-stacked');
         tokenEl.style.top = '50%';
         tokenEl.style.left = '50%';
       }
@@ -251,8 +331,6 @@
         const cell = document.getElementById(`cell-${v.row}-${v.col}`);
         if (cell && tokenEl.parentElement !== cell) {
           cell.appendChild(tokenEl);
-          tokenEl.style.top = '50%';
-          tokenEl.style.left = '50%';
         }
       }
     }
@@ -273,6 +351,8 @@
         mountTokenToTarget(tok, color, -1, i);
       }
     });
+    applyStackedPositions();
+    updateHomeCounters();
   }
 
   function updateTokensView() {
@@ -293,6 +373,8 @@
         mountTokenToTarget(tok, color, step, i);
       });
     });
+    applyStackedPositions();
+    updateHomeCounters();
   }
 
   // 4. ANIMATION HELPERS (Step puk, 1/4s Delay + Reverse Rewind & Home sound)
@@ -303,6 +385,7 @@
     if (fromStep === -1) {
       SoundManager.playReleaseYes();
       mountTokenToTarget(tokenEl, color, 0, tokenId);
+      applyStackedPositions();
       await new Promise(res => setTimeout(res, 260));
       return;
     }
@@ -311,29 +394,31 @@
       await new Promise(res => setTimeout(res, 140));
       SoundManager.playStepPuk();
       mountTokenToTarget(tokenEl, color, s, tokenId);
+      applyStackedPositions();
     }
 
     if (toStep === 56) {
       SoundManager.playHomeChime();
+      updateHomeCounters();
     }
     await new Promise(res => setTimeout(res, 100));
   }
 
-  // 1/4 SECOND DELAY KE SAATH REVERSE REWIND & SUUUU SOUND
   async function animateReverseRewind(color, tokenId, fromStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
 
-    // Theek 1/4 second (250ms) rukega katne ke baad
-    await new Promise(res => setTimeout(res, 250));
+    await new Promise(res => setTimeout(res, 250)); // 1/4s Pause
 
     SoundManager.playCaptureSuuu();
     for (let s = fromStep - 1; s >= 0; s--) {
       await new Promise(res => setTimeout(res, 60));
       mountTokenToTarget(tokenEl, color, s, tokenId);
+      applyStackedPositions();
     }
     await new Promise(res => setTimeout(res, 80));
     mountTokenToTarget(tokenEl, color, -1, tokenId);
+    applyStackedPositions();
   }
 
   // 5. GAMEPLAY ACTIONS
@@ -649,7 +734,6 @@
                   const oldStep = GameState.tokens[c][i];
                   if (newStep !== oldStep) {
                     if (newStep === -1 && oldStep >= 0) {
-                      // Opponent goti katne par 1/4 second delay + suuuuu sound ke sath ghar lautegi
                       await animateReverseRewind(c, i, oldStep);
                     } else if (newStep > oldStep || (oldStep === -1 && newStep === 0)) {
                       await animateForwardSteps(c, i, oldStep, newStep);
