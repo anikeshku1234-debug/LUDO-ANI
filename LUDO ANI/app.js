@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH MULTI-TOKEN AUTO-STACKING & HOME COUNTER
+ * LUDO ROYALE - COMPLETE ENGINE WITH ACCURATE HOME COUNTER & PODIUM VICTORY
  * ============================================================================
  */
 
@@ -13,6 +13,7 @@
   let currentRoomCode = null;
   let myColor = 'red';
   let isBoardLaunched = false;
+  let isGameOver = false;
   let pollingInterval = null;
   let lastServerVersion = 0;
 
@@ -75,11 +76,11 @@
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(950, now);
-      osc.frequency.exponentialRampToValueAtTime(110, now + 0.48);
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.48);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.55);
+      gain.gain.setValueAtTime(0.32, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
       osc.connect(gain); gain.connect(this.ctx.destination);
-      osc.start(now); osc.stop(now + 0.48);
+      osc.start(now); osc.stop(now + 0.55);
     },
     playHomeChime() {
       if (!this.enabled || !this.ctx) return;
@@ -99,15 +100,15 @@
     playVictory() {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
-      [440, 554.37, 659.25, 880].forEach((f, idx) => {
+      [440, 554.37, 659.25, 880, 1108.73].forEach((f, idx) => {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(f, now + idx * 0.12);
-        gain.gain.setValueAtTime(0.3, now + idx * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
+        osc.frequency.setValueAtTime(f, now + idx * 0.14);
+        gain.gain.setValueAtTime(0.32, now + idx * 0.14);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.14 + 0.45);
         osc.connect(gain); gain.connect(this.ctx.destination);
-        osc.start(now + idx * 0.12); osc.stop(now + idx * 0.12 + 0.4);
+        osc.start(now + idx * 0.14); osc.stop(now + idx * 0.14 + 0.45);
       });
     }
   };
@@ -155,6 +156,7 @@
     consecutiveSixes: 0,
     isRolling: false,
     isAnimating: false,
+    winners: [],
     tokens: {
       red: [-1, -1, -1, -1],
       yellow: [-1, -1, -1, -1],
@@ -170,12 +172,14 @@
       this.consecutiveSixes = 0;
       this.isRolling = false;
       this.isAnimating = false;
+      this.winners = [];
       this.tokens = {
         red: [-1, -1, -1, -1],
         yellow: [-1, -1, -1, -1],
         green: [-1, -1, -1, -1],
         blue: [-1, -1, -1, -1]
       };
+      isGameOver = false;
     },
 
     canTokenMove(step, roll) {
@@ -236,42 +240,39 @@
       }
     }
 
-    // Add Live Home / Laal Counters to Center Triangles
     injectHomeCounters();
   }
 
   function injectHomeCounters() {
     ['red', 'yellow', 'green', 'blue'].forEach(c => {
       const tri = document.querySelector(`.tri-${c}`);
-      if (tri && !document.getElementById(`home-count-${c}`)) {
-        const badge = document.createElement('div');
-        badge.id = `home-count-${c}`;
-        badge.className = 'home-count-badge';
+      if (tri) {
+        let badge = document.getElementById(`home-count-${c}`);
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.id = `home-count-${c}`;
+          badge.className = 'home-count-badge';
+          tri.appendChild(badge);
+        }
         badge.innerText = '0/4';
-        tri.appendChild(badge);
       }
     });
   }
 
-  // Update Live Middle Destination Counter
+  // ACCURATE LAAL/DESTINATION COUNTER UPDATE
   function updateHomeCounters() {
     ['red', 'yellow', 'green', 'blue'].forEach(c => {
       const b = document.getElementById(`home-count-${c}`);
       if (b && GameState.tokens[c]) {
         const homeTokens = GameState.tokens[c].filter(s => s === 56).length;
         b.innerText = `${homeTokens}/4`;
-        if (homeTokens > 0) {
-          b.style.display = 'block';
-        }
       }
     });
   }
 
-  // MULTI-TOKEN DYNAMIC STACKING (Auto-Resize jab ek cell par 1 se zyada goti ho)
+  // MULTI-TOKEN DYNAMIC STACKING
   function applyStackedPositions() {
-    // 1. Group tokens by cell container
     const cellGroups = new Map();
-
     const activeColors = GameState.players.map(p => p.color);
     activeColors.forEach(color => {
       for (let i = 0; i < 4; i++) {
@@ -286,7 +287,6 @@
       }
     });
 
-    // 2. Adjust size and grid offset
     cellGroups.forEach((tokens, parent) => {
       const count = tokens.length;
       if (count <= 1 || parent.classList.contains('base-spot')) {
@@ -296,7 +296,6 @@
           tok.style.left = '50%';
         });
       } else {
-        // Multi-tokens stacked: Shrink to make all visible
         tokens.forEach((tok, idx) => {
           tok.classList.add('token-stacked');
           if (count === 2) {
@@ -307,7 +306,6 @@
             else if (idx === 1) { tok.style.top = '72%'; tok.style.left = '30%'; }
             else { tok.style.top = '72%'; tok.style.left = '70%'; }
           } else {
-            // 4 tokens
             tok.style.top = idx < 2 ? '28%' : '72%';
             tok.style.left = idx % 2 === 0 ? '28%' : '72%';
           }
@@ -399,7 +397,6 @@
 
     if (toStep === 56) {
       SoundManager.playHomeChime();
-      updateHomeCounters();
     }
     await new Promise(res => setTimeout(res, 100));
   }
@@ -421,9 +418,85 @@
     applyStackedPositions();
   }
 
-  // 5. GAMEPLAY ACTIONS
+  // 5. GAME OVER & PODIUM POPUP (When 3 out of 4, 2 out of 3, or 1 out of 2 finish)
+  function checkGameFinished() {
+    const activeColors = GameState.players.map(p => p.color);
+    activeColors.forEach(c => {
+      const allFourHome = GameState.tokens[c] && GameState.tokens[c].every(s => s === 56);
+      if (allFourHome && !GameState.winners.includes(c)) {
+        GameState.winners.push(c);
+      }
+    });
+
+    const neededWinners = GameState.players.length - 1; // 4 me 3, 3 me 2, 2 me 1
+    if (GameState.winners.length >= neededWinners && !isGameOver) {
+      isGameOver = true;
+      SoundManager.playVictory();
+      triggerPodiumVictoryModal();
+      return true;
+    }
+    return false;
+  }
+
+  function triggerPodiumVictoryModal() {
+    let modal = document.getElementById('victory-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'victory-modal';
+      modal.className = 'modal-backdrop';
+      modal.innerHTML = `
+        <div class="modal-dialog victory-dialog" style="max-width:340px;">
+          <div class="confetti-holder">🏆🎉</div>
+          <h2 id="winner-celebrate-title">MATCH FINISHED!</h2>
+          <div id="podium-rankings-list" class="podium-list"></div>
+          <div class="modal-actions">
+            <button class="btn btn-primary btn-large" id="btn-victory-replay">Play Again</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      document.getElementById('btn-victory-replay').onclick = () => {
+        modal.style.display = 'none';
+        startPassAndPlayMatch();
+      };
+    }
+
+    const title = document.getElementById('winner-celebrate-title');
+    const podiumList = document.getElementById('podium-rankings-list');
+
+    const firstWinnerColor = GameState.winners[0];
+    const firstWinner = GameState.players.find(p => p.color === firstWinnerColor);
+    title.innerText = `${firstWinner ? firstWinner.name.toUpperCase() : 'PLAYER'} IS WINNER!`;
+
+    podiumList.innerHTML = '';
+    const rankBadges = ['🥇 1st Place (WINNER)', '🥈 2nd Place', '🥉 3rd Place'];
+
+    // Add Winners
+    GameState.winners.forEach((wColor, idx) => {
+      const playerObj = GameState.players.find(p => p.color === wColor) || { name: wColor.toUpperCase() };
+      const row = document.createElement('div');
+      row.className = 'podium-item';
+      row.innerHTML = `<span>${rankBadges[idx] || `${idx + 1}th Place`}</span><span style="color:var(--ludo-${wColor})">${playerObj.name}</span>`;
+      podiumList.appendChild(row);
+    });
+
+    // Add Remaining Last Player as Looser
+    const loser = GameState.players.find(p => !GameState.winners.includes(p.color));
+    if (loser) {
+      const loserRow = document.createElement('div');
+      loserRow.className = 'podium-item';
+      loserRow.style.border = '1px solid #ef4444';
+      loserRow.innerHTML = `<span style="color:#ef4444; font-weight:bold;">❌ Looser</span><span style="color:var(--ludo-${loser.color})">${loser.name}</span>`;
+      podiumList.appendChild(loserRow);
+    }
+
+    modal.style.display = 'flex';
+    setDiceInteractionEnabled(false);
+  }
+
+  // 6. GAMEPLAY ACTIONS
   async function onRollDiceTriggered() {
-    if (GameState.isRolling || GameState.isAnimating) return;
+    if (GameState.isRolling || GameState.isAnimating || isGameOver) return;
     if (GameState.isOnline && GameState.activeColor !== myColor) return;
 
     const roll = getBiasedDiceRoll();
@@ -479,6 +552,7 @@
   }
 
   async function handlePostRoll(color, roll) {
+    if (isGameOver) return;
     const legalTokens = GameState.getLegalMoves(color, roll);
 
     if (legalTokens.length === 0) {
@@ -503,7 +577,7 @@
   }
 
   function onTokenClicked(e) {
-    if (GameState.isRolling || GameState.isAnimating || !GameState.diceValue) return;
+    if (GameState.isRolling || GameState.isAnimating || !GameState.diceValue || isGameOver) return;
 
     const color = e.currentTarget.dataset.color;
     const id = parseInt(e.currentTarget.dataset.id, 10);
@@ -541,7 +615,6 @@
       } else if (toStep < 51) {
         const myGlobal = (COLOR_SPECS[color].offset + toStep) % 52;
 
-        // DOUBLE TOKEN BLOCK RULE CHECK
         if (!SAFE_CELL_INDICES.includes(myGlobal)) {
           const rivalPlayers = GameState.players.filter(p => p.color !== color);
           for (let rp of rivalPlayers) {
@@ -582,8 +655,18 @@
       }
     }
 
+    // UPDATE ARRAY BEFORE RE-RENDERING COUNTERS
     GameState.tokens[color][tokenId] = toStep;
     updateTokensView();
+    updateHomeCounters();
+
+    // CHECK IF GAME FINISHED
+    const ended = checkGameFinished();
+    if (ended) {
+      GameState.diceValue = null;
+      GameState.isAnimating = false;
+      return;
+    }
 
     if (GameState.isOnline && color === myColor) {
       fetch('/api/send-action', {
@@ -617,12 +700,21 @@
   }
 
   function advancePassPlayTurn() {
+    if (isGameOver) return;
     GameState.diceValue = null;
     GameState.consecutiveSixes = 0;
     const playerColors = GameState.players.map(p => p.color);
     let curIndex = playerColors.indexOf(GameState.activeColor);
-    curIndex = (curIndex + 1) % playerColors.length;
-    GameState.activeColor = playerColors[curIndex];
+
+    // Skip already finished players
+    for (let i = 0; i < playerColors.length; i++) {
+      curIndex = (curIndex + 1) % playerColors.length;
+      const candidateColor = playerColors[curIndex];
+      if (!GameState.winners.includes(candidateColor)) {
+        GameState.activeColor = candidateColor;
+        break;
+      }
+    }
     syncUIWithTurn();
   }
 
@@ -641,6 +733,7 @@
   }
 
   function syncUIWithTurn() {
+    if (isGameOver) return;
     const curColor = GameState.activeColor;
     const playerObj = GameState.players.find(p => p.color === curColor) || { name: curColor.toUpperCase() };
 
@@ -659,6 +752,11 @@
   function setDiceInteractionEnabled(enable) {
     const diceBtn = document.getElementById('btn-roll-dice');
     const arrow = document.getElementById('dice-pointer-arrow');
+    if (isGameOver) {
+      diceBtn.disabled = true;
+      arrow.style.visibility = 'hidden';
+      return;
+    }
     diceBtn.disabled = !enable;
     arrow.style.visibility = enable ? 'visible' : 'hidden';
   }
@@ -688,7 +786,7 @@
     syncUIWithTurn();
   }
 
-  // 6. REALTIME ONLINE STATE REPLICATION
+  // 7. REALTIME ONLINE STATE REPLICATION
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -740,6 +838,8 @@
                     }
                     GameState.tokens[c][i] = newStep;
                     updateTokensView();
+                    updateHomeCounters();
+                    checkGameFinished();
                   }
                 });
               } else {
@@ -747,6 +847,8 @@
               }
             });
             updateTokensView();
+            updateHomeCounters();
+            checkGameFinished();
           }
 
           GameState.activeColor = data.activeColor;
@@ -800,7 +902,7 @@
     launchGameBoard(configuredPlayers, false);
   }
 
-  // 7. USER AUTHENTICATION UI
+  // 8. USER AUTHENTICATION UI
   function updateAuthHeaderUI() {
     let authBox = document.getElementById('user-profile-badge');
     if (!authBox) {
@@ -900,7 +1002,7 @@
     };
   }
 
-  // 8. CONTROLS INITIALIZATION
+  // 9. CONTROLS INITIALIZATION
   function setupEventListeners() {
     document.getElementById('btn-audio-init').addEventListener('click', () => {
       SoundManager.init();
@@ -1016,6 +1118,7 @@
       document.getElementById('game-screen').style.display = 'none';
       document.getElementById('lobby-screen').style.display = 'flex';
       isBoardLaunched = false;
+      isGameOver = false;
       if (pollingInterval) clearInterval(pollingInterval);
     });
   }
