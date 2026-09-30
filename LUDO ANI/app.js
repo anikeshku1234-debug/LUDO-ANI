@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - COMPLETE ENGINE WITH ACCURATE HOME COUNTER & PODIUM VICTORY
+ * LUDO ROYALE - FULL REALTIME ENGINE + WEBRTC LIVE VOICE CHAT (MIC & SPEAKER)
  * ============================================================================
  */
 
@@ -17,7 +17,157 @@
   let pollingInterval = null;
   let lastServerVersion = 0;
 
-  // 1. SOUND SYNTHESIZER (Pure Web Audio API)
+  // ==========================================================================
+  // WEBRTC VOICE CHAT ENGINE (MIC & SPEAKER)
+  // ==========================================================================
+  const VoiceChat = {
+    localStream: null,
+    peerConnection: null,
+    isMuted: false,
+    remoteAudio: null,
+    rtcConfig: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    },
+
+    async init() {
+      const micBtn = document.getElementById('btn-mic-toggle');
+      if (micBtn) {
+        micBtn.style.display = 'inline-block';
+        micBtn.className = 'icon-btn mic-active';
+        micBtn.onclick = () => this.toggleMic();
+      }
+
+      if (!this.remoteAudio) {
+        this.remoteAudio = document.createElement('audio');
+        this.remoteAudio.autoplay = true;
+        document.body.appendChild(this.remoteAudio);
+      }
+
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (err) {
+        console.warn('Microphone permission denied or not available:', err);
+        if (micBtn) {
+          micBtn.innerText = '🔇';
+          micBtn.className = 'icon-btn mic-muted';
+        }
+        return;
+      }
+
+      this.createPeerConnection();
+
+      // Agar host hai toh audio offer create karega
+      if (myColor === 'red') {
+        this.createAndSendOffer();
+      }
+    },
+
+    createPeerConnection() {
+      this.peerConnection = new RTCPeerConnection(this.rtcConfig);
+
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => {
+          this.peerConnection.addTrack(track, this.localStream);
+        });
+      }
+
+      this.peerConnection.ontrack = (event) => {
+        if (this.remoteAudio && event.streams && event.streams[0]) {
+          this.remoteAudio.srcObject = event.streams[0];
+        }
+      };
+
+      this.peerConnection.onicecandidate = (event) => {
+        if (event.candidate && currentRoomCode) {
+          fetch('/api/send-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomCode: currentRoomCode,
+              action: { type: 'VOICE_ICE', candidate: event.candidate, fromColor: myColor }
+            })
+          });
+        }
+      };
+    },
+
+    async createAndSendOffer() {
+      if (!this.peerConnection) return;
+      const offer = await this.peerConnection.createOffer();
+      await this.peerConnection.setLocalDescription(offer);
+
+      fetch('/api/send-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomCode: currentRoomCode,
+          action: { type: 'VOICE_OFFER', sdp: offer, fromColor: myColor }
+        })
+      });
+    },
+
+    async handleRemoteOffer(offer) {
+      if (!this.peerConnection) this.createPeerConnection();
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await this.peerConnection.createAnswer();
+      await this.peerConnection.setLocalDescription(answer);
+
+      fetch('/api/send-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomCode: currentRoomCode,
+          action: { type: 'VOICE_ANSWER', sdp: answer, fromColor: myColor }
+        })
+      });
+    },
+
+    async handleRemoteAnswer(answer) {
+      if (this.peerConnection && this.peerConnection.signalingState !== 'stable') {
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    },
+
+    async handleRemoteIce(candidate) {
+      if (this.peerConnection) {
+        try {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {}
+      }
+    },
+
+    toggleMic() {
+      if (!this.localStream) return;
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        this.isMuted = !this.isMuted;
+        audioTrack.enabled = !this.isMuted;
+        const micBtn = document.getElementById('btn-mic-toggle');
+        if (micBtn) {
+          micBtn.innerText = this.isMuted ? '🔇' : '🎙️';
+          micBtn.className = this.isMuted ? 'icon-btn mic-muted' : 'icon-btn mic-active';
+        }
+      }
+    },
+
+    stop() {
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(t => t.stop());
+        this.localStream = null;
+      }
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = null;
+      }
+      const micBtn = document.getElementById('btn-mic-toggle');
+      if (micBtn) micBtn.style.display = 'none';
+    }
+  };
+
+  // SOUND SYNTHESIZER
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -113,7 +263,7 @@
     }
   };
 
-  // 2. COORDINATES & TRACK SPECS
+  // COORDINATES & TRACK SPECS
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -147,7 +297,6 @@
     }
   }
 
-  // 3. ENGINE STATE
   const GameState = {
     isOnline: false,
     players: [],
@@ -259,7 +408,6 @@
     });
   }
 
-  // ACCURATE LAAL/DESTINATION COUNTER UPDATE
   function updateHomeCounters() {
     ['red', 'yellow', 'green', 'blue'].forEach(c => {
       const b = document.getElementById(`home-count-${c}`);
@@ -270,7 +418,6 @@
     });
   }
 
-  // MULTI-TOKEN DYNAMIC STACKING
   function applyStackedPositions() {
     const cellGroups = new Map();
     const activeColors = GameState.players.map(p => p.color);
@@ -375,7 +522,6 @@
     updateHomeCounters();
   }
 
-  // 4. ANIMATION HELPERS (Step puk, 1/4s Delay + Reverse Rewind & Home sound)
   async function animateForwardSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -418,7 +564,6 @@
     applyStackedPositions();
   }
 
-  // 5. GAME OVER & PODIUM POPUP (When 3 out of 4, 2 out of 3, or 1 out of 2 finish)
   function checkGameFinished() {
     const activeColors = GameState.players.map(p => p.color);
     activeColors.forEach(c => {
@@ -428,7 +573,7 @@
       }
     });
 
-    const neededWinners = GameState.players.length - 1; // 4 me 3, 3 me 2, 2 me 1
+    const neededWinners = GameState.players.length - 1;
     if (GameState.winners.length >= neededWinners && !isGameOver) {
       isGameOver = true;
       SoundManager.playVictory();
@@ -471,7 +616,6 @@
     podiumList.innerHTML = '';
     const rankBadges = ['🥇 1st Place (WINNER)', '🥈 2nd Place', '🥉 3rd Place'];
 
-    // Add Winners
     GameState.winners.forEach((wColor, idx) => {
       const playerObj = GameState.players.find(p => p.color === wColor) || { name: wColor.toUpperCase() };
       const row = document.createElement('div');
@@ -480,7 +624,6 @@
       podiumList.appendChild(row);
     });
 
-    // Add Remaining Last Player as Looser
     const loser = GameState.players.find(p => !GameState.winners.includes(p.color));
     if (loser) {
       const loserRow = document.createElement('div');
@@ -494,7 +637,6 @@
     setDiceInteractionEnabled(false);
   }
 
-  // 6. GAMEPLAY ACTIONS
   async function onRollDiceTriggered() {
     if (GameState.isRolling || GameState.isAnimating || isGameOver) return;
     if (GameState.isOnline && GameState.activeColor !== myColor) return;
@@ -513,7 +655,6 @@
     GameState.diceValue = roll;
     GameState.isRolling = false;
 
-    // 3 CONSECUTIVE 6s RULE
     if (roll === 6) {
       GameState.consecutiveSixes++;
     } else {
@@ -655,12 +796,10 @@
       }
     }
 
-    // UPDATE ARRAY BEFORE RE-RENDERING COUNTERS
     GameState.tokens[color][tokenId] = toStep;
     updateTokensView();
     updateHomeCounters();
 
-    // CHECK IF GAME FINISHED
     const ended = checkGameFinished();
     if (ended) {
       GameState.diceValue = null;
@@ -706,7 +845,6 @@
     const playerColors = GameState.players.map(p => p.color);
     let curIndex = playerColors.indexOf(GameState.activeColor);
 
-    // Skip already finished players
     for (let i = 0; i < playerColors.length; i++) {
       curIndex = (curIndex + 1) % playerColors.length;
       const candidateColor = playerColors[curIndex];
@@ -784,6 +922,11 @@
     buildBoardGrid();
     createAllTokens();
     syncUIWithTurn();
+
+    // Online game shuru hote hi Voice Chat initialize karein
+    if (isOnlineMode) {
+      VoiceChat.init();
+    }
   }
 
   // 7. REALTIME ONLINE STATE REPLICATION
@@ -865,6 +1008,21 @@
           }
 
           syncUIWithTurn();
+        }
+
+        // Voice Chat Signaling handling from actions
+        if (data.actions) {
+          data.actions.forEach(act => {
+            if (act.fromColor && act.fromColor !== myColor) {
+              if (act.type === 'VOICE_OFFER') {
+                VoiceChat.handleRemoteOffer(act.sdp);
+              } else if (act.type === 'VOICE_ANSWER') {
+                VoiceChat.handleRemoteAnswer(act.sdp);
+              } else if (act.type === 'VOICE_ICE') {
+                VoiceChat.handleRemoteIce(act.candidate);
+              }
+            }
+          });
         }
       } catch (err) {}
     }, 300);
@@ -1119,6 +1277,7 @@
       document.getElementById('lobby-screen').style.display = 'flex';
       isBoardLaunched = false;
       isGameOver = false;
+      VoiceChat.stop();
       if (pollingInterval) clearInterval(pollingInterval);
     });
   }
