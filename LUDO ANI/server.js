@@ -76,6 +76,7 @@ app.post('/api/create-room', (req, res) => {
       red: [-1, -1, -1, -1],
       yellow: [-1, -1, -1, -1]
     },
+    voiceSignals: [],
     version: 1
   };
 
@@ -114,13 +115,22 @@ app.post('/api/start-game', (req, res) => {
   res.json({ success: true });
 });
 
-// 6. ACTION DISPATCH (DICE ROLL & MOVE & PASS)
+// 6. ACTION & WEBRTC VOICE DISPATCH
 app.post('/api/send-action', (req, res) => {
   const code = (req.body.roomCode || '').toString().trim();
   const act = req.body.action;
   const room = rooms.get(code);
   if (!room) return res.json({ success: false });
 
+  // WebRTC Audio Signals
+  if (act.type.startsWith('VOICE_')) {
+    act.id = 'voice_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    room.voiceSignals.push(act);
+    if (room.voiceSignals.length > 50) room.voiceSignals.shift();
+    return res.json({ success: true });
+  }
+
+  // Game Engine Actions
   if (act.type === 'DICE_ROLLED') {
     room.diceValue = act.roll;
     room.activeColor = act.color;
@@ -128,7 +138,6 @@ app.post('/api/send-action', (req, res) => {
     if (room.tokens[act.color]) {
       room.tokens[act.color][act.tokenId] = act.toStep;
     }
-    // Cut rival token
     if (act.cutRival) {
       const rival = act.color === 'red' ? 'yellow' : 'red';
       if (room.tokens[rival] && room.tokens[rival][act.cutTokenId] !== undefined) {
@@ -148,7 +157,7 @@ app.post('/api/send-action', (req, res) => {
   res.json({ success: true });
 });
 
-// 7. REALTIME POLL
+// 7. REALTIME POLL (GAME STATE + VOICE SIGNALS)
 app.get('/api/poll/:roomCode', (req, res) => {
   const code = (req.params.roomCode || '').toString().trim();
   const room = rooms.get(code);
@@ -161,6 +170,7 @@ app.get('/api/poll/:roomCode', (req, res) => {
     activeColor: room.activeColor,
     diceValue: room.diceValue,
     tokens: room.tokens,
+    voiceSignals: room.voiceSignals || [],
     version: room.version
   });
 });
