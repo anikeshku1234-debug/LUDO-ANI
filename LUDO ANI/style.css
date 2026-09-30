@@ -597,3 +597,26 @@ html, body {
   font-weight: 700;
   font-size: 13px;
 }
+/* Mic Button Styling */
+#btn-mic-toggle {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#btn-mic-toggle.mic-active {
+  background: #16a34a !important; /* Green jab bol rahe ho */
+  border-color: #22c55e !important;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+}
+
+#btn-mic-toggle.mic-muted {
+  background: #dc2626 !important; /* Red jab mute ho */
+  border-color: #ef4444 !important;
+}
