@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LUDO ROYALE - MOBILE OPTIMIZED + MULTI-TOKEN STACKING + HOME COUNTER
+   LUDO ROYALE - MOBILE OPTIMIZED + MULTI-TOKEN STACKING + HOME COUNTER + MIC
    ========================================================================== */
 
 :root {
@@ -597,6 +597,7 @@ html, body {
   font-weight: 700;
   font-size: 13px;
 }
+
 /* Mic Button Styling */
 #btn-mic-toggle {
   background: #1e293b;
