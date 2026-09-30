@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * LUDO ROYALE - FULL REALTIME ENGINE + WEBRTC LIVE VOICE CHAT (MIC & SPEAKER)
+ * LUDO ROYALE - COMPLETE ENGINE WITH WORKING WEBRTC MIC & SPEAKER VOICE CHAT
  * ============================================================================
  */
 
@@ -16,9 +16,10 @@
   let isGameOver = false;
   let pollingInterval = null;
   let lastServerVersion = 0;
+  let processedVoiceIds = new Set();
 
   // ==========================================================================
-  // WEBRTC VOICE CHAT ENGINE (MIC & SPEAKER)
+  // WEBRTC LIVE VOICE CHAT ENGINE (FIXED MIC & SPEAKER AUDIBILITY)
   // ==========================================================================
   const VoiceChat = {
     localStream: null,
@@ -43,13 +44,21 @@
       if (!this.remoteAudio) {
         this.remoteAudio = document.createElement('audio');
         this.remoteAudio.autoplay = true;
+        this.remoteAudio.playsInline = true;
         document.body.appendChild(this.remoteAudio);
       }
 
       try {
-        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
       } catch (err) {
-        console.warn('Microphone permission denied or not available:', err);
+        console.warn('Microphone permission blocked or unavailable:', err);
         if (micBtn) {
           micBtn.innerText = '🔇';
           micBtn.className = 'icon-btn mic-muted';
@@ -59,13 +68,14 @@
 
       this.createPeerConnection();
 
-      // Agar host hai toh audio offer create karega
+      // Host initiates audio call
       if (myColor === 'red') {
-        this.createAndSendOffer();
+        setTimeout(() => this.createAndSendOffer(), 400);
       }
     },
 
     createPeerConnection() {
+      if (this.peerConnection) return;
       this.peerConnection = new RTCPeerConnection(this.rtcConfig);
 
       if (this.localStream) {
@@ -77,6 +87,14 @@
       this.peerConnection.ontrack = (event) => {
         if (this.remoteAudio && event.streams && event.streams[0]) {
           this.remoteAudio.srcObject = event.streams[0];
+          this.remoteAudio.play().catch(() => {
+            // Screen tap to resume if browser blocked autoplay
+            const resumeSpeaker = () => {
+              this.remoteAudio.play();
+              window.removeEventListener('click', resumeSpeaker);
+            };
+            window.addEventListener('click', resumeSpeaker);
+          });
         }
       };
 
@@ -95,39 +113,51 @@
     },
 
     async createAndSendOffer() {
-      if (!this.peerConnection) return;
-      const offer = await this.peerConnection.createOffer();
-      await this.peerConnection.setLocalDescription(offer);
+      if (!this.peerConnection) this.createPeerConnection();
+      try {
+        const offer = await this.peerConnection.createOffer();
+        await this.peerConnection.setLocalDescription(offer);
 
-      fetch('/api/send-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomCode: currentRoomCode,
-          action: { type: 'VOICE_OFFER', sdp: offer, fromColor: myColor }
-        })
-      });
+        fetch('/api/send-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomCode: currentRoomCode,
+            action: { type: 'VOICE_OFFER', sdp: offer, fromColor: myColor }
+          })
+        });
+      } catch (e) {
+        console.warn('Offer send failed:', e);
+      }
     },
 
     async handleRemoteOffer(offer) {
       if (!this.peerConnection) this.createPeerConnection();
-      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await this.peerConnection.createAnswer();
-      await this.peerConnection.setLocalDescription(answer);
+      try {
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
 
-      fetch('/api/send-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomCode: currentRoomCode,
-          action: { type: 'VOICE_ANSWER', sdp: answer, fromColor: myColor }
-        })
-      });
+        fetch('/api/send-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomCode: currentRoomCode,
+            action: { type: 'VOICE_ANSWER', sdp: answer, fromColor: myColor }
+          })
+        });
+      } catch (e) {
+        console.warn('Handle offer error:', e);
+      }
     },
 
     async handleRemoteAnswer(answer) {
       if (this.peerConnection && this.peerConnection.signalingState !== 'stable') {
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        try {
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (e) {
+          console.warn('Handle answer error:', e);
+        }
       }
     },
 
@@ -167,7 +197,7 @@
     }
   };
 
-  // SOUND SYNTHESIZER
+  // 1. SOUND SYNTHESIZER (Pure Web Audio API)
   const SoundManager = {
     ctx: null,
     enabled: true,
@@ -263,7 +293,7 @@
     }
   };
 
-  // COORDINATES & TRACK SPECS
+  // 2. COORDINATES & TRACK SPECS
   const GLOBAL_TRACK_52 = [
     [13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],
     [6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],
@@ -297,6 +327,7 @@
     }
   }
 
+  // 3. ENGINE STATE
   const GameState = {
     isOnline: false,
     players: [],
@@ -346,7 +377,6 @@
     }
   };
 
-  // WEIGHTED DICE ROLL (6: +10%, 2: -10%)
   function getBiasedDiceRoll() {
     const r = Math.random() * 100;
     if (r < 16.67) return 1;
@@ -522,6 +552,7 @@
     updateHomeCounters();
   }
 
+  // 4. ANIMATION HELPERS
   async function animateForwardSteps(color, tokenId, fromStep, toStep) {
     const tokenEl = document.getElementById(`token-${color}-${tokenId}`);
     if (!tokenEl) return;
@@ -923,13 +954,13 @@
     createAllTokens();
     syncUIWithTurn();
 
-    // Online game shuru hote hi Voice Chat initialize karein
+    // Voice Chat start on online match
     if (isOnlineMode) {
       VoiceChat.init();
     }
   }
 
-  // 7. REALTIME ONLINE STATE REPLICATION
+  // 7. REALTIME ONLINE STATE & VOICE REPLICATION
   function startStatePolling(roomCode) {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -1010,19 +1041,23 @@
           syncUIWithTurn();
         }
 
-        // Voice Chat Signaling handling from actions
-        if (data.actions) {
-          data.actions.forEach(act => {
-            if (act.fromColor && act.fromColor !== myColor) {
-              if (act.type === 'VOICE_OFFER') {
-                VoiceChat.handleRemoteOffer(act.sdp);
-              } else if (act.type === 'VOICE_ANSWER') {
-                VoiceChat.handleRemoteAnswer(act.sdp);
-              } else if (act.type === 'VOICE_ICE') {
-                VoiceChat.handleRemoteIce(act.candidate);
+        // 4. Voice Chat Signaling Dispatch (Crucial for Audio Audibility)
+        if (data.voiceSignals && data.voiceSignals.length > 0) {
+          for (let sig of data.voiceSignals) {
+            if (!processedVoiceIds.has(sig.id)) {
+              processedVoiceIds.add(sig.id);
+
+              if (sig.fromColor && sig.fromColor !== myColor) {
+                if (sig.type === 'VOICE_OFFER') {
+                  VoiceChat.handleRemoteOffer(sig.sdp);
+                } else if (sig.type === 'VOICE_ANSWER') {
+                  VoiceChat.handleRemoteAnswer(sig.sdp);
+                } else if (sig.type === 'VOICE_ICE') {
+                  VoiceChat.handleRemoteIce(sig.candidate);
+                }
               }
             }
-          });
+          }
         }
       } catch (err) {}
     }, 300);
