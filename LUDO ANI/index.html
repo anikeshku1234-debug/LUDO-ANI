@@ -1,100 +1,114 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Ludo Royale - Direct Multiplayer</title>
+  
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="logo-192.png" />
+  <link rel="icon" type="image/png" href="logo-192.png" />
 
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png">
-  <link rel="apple-touch-icon" href="/logo-192.png">
-  <meta name="theme-color" content="#0284c7">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-  <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+  <!-- Audio Autoplay Unlock Overlay -->
   <div id="audio-unlock-overlay">
     <div class="unlock-box">
       <h2>🎲 LUDO ROYALE</h2>
-      <p>Tap anywhere to enable sound effects and launch game</p>
-      <button class="btn btn-primary" id="btn-audio-init">PLAY GAME</button>
+      <p>Game sound aur voice chat enable karne ke liye tap karein</p>
+      <button id="btn-audio-init" class="btn btn-primary btn-large">TAP TO PLAY</button>
     </div>
   </div>
 
+  <!-- 1. LOBBY SCREEN -->
   <div id="lobby-screen" class="screen-view">
     <div class="lobby-card">
-      <h1 class="game-logo">🎲 LUDO ROYALE</h1>
-      
+      <h1 class="game-logo">👑 LUDO ROYALE</h1>
+
+      <!-- Mode Selection Tabs -->
       <div class="mode-tabs">
-        <button class="tab-btn active" data-tab="tab-passplay">PASS & PLAY</button>
-        <button class="tab-btn" data-tab="tab-room">ROOM LOBBY</button>
+        <button class="tab-btn active" data-tab="tab-passplay">PASS &amp; PLAY</button>
+        <button class="tab-btn" data-tab="tab-online">ONLINE ROOM</button>
       </div>
 
+      <!-- Tab Content: Pass & Play -->
       <div id="tab-passplay" class="tab-content active">
-        <div class="section-label">Select Number of Players</div>
+        <div class="section-label">SELECT PLAYERS</div>
         <div class="player-count-group">
-          <button class="btn-count" data-count="2">2 Players</button>
-          <button class="btn-count active" data-count="3">3 Players</button>
-          <button class="btn-count" data-count="4">4 Players</button>
+          <button class="btn-count" data-count="2">2P</button>
+          <button class="btn-count active" data-count="3">3P</button>
+          <button class="btn-count" data-count="4">4P</button>
         </div>
 
-        <div class="section-label">Enter Player Names</div>
-        <div id="player-inputs-container" class="inputs-grid"></div>
+        <div class="section-label">PLAYER NAMES</div>
+        <div id="player-inputs-container" class="inputs-grid">
+          <!-- Dynamically populated based on count -->
+        </div>
 
-        <button class="btn btn-primary btn-large" id="btn-start-passplay">START GAME</button>
+        <button id="btn-start-passplay" class="btn btn-primary btn-large">START MATCH</button>
       </div>
 
-      <div id="tab-room" class="tab-content">
-        <div class="room-action-cards">
-          <div class="room-box">
-            <h3>HOST NEW ROOM</h3>
-            <input type="text" id="host-player-name" placeholder="Enter your name" value="Host Player">
-            <button class="btn btn-secondary" id="btn-create-room">CREATE ROOM</button>
-            <div id="created-code-box" class="code-badge" style="display:none;">
-              <span>4-DIGIT CODE:</span>
-              <strong id="display-room-code" style="font-size: 22px; letter-spacing: 4px; color: #facc15;">----</strong>
-            </div>
+      <!-- Tab Content: Online Multiplayer -->
+      <div id="tab-online" class="tab-content">
+        <!-- Create Room Section -->
+        <div class="room-box">
+          <h3>CREATE PRIVATE ROOM</h3>
+          <input type="text" id="host-player-name" placeholder="Apna Naam Likhein" maxlength="12" />
+          <button id="btn-create-room" class="btn btn-secondary btn-large">CREATE ROOM</button>
+          
+          <div id="created-code-box" style="display: none; text-align: center;">
+            <div class="divider-text">SHARE THIS 4-DIGIT CODE</div>
+            <div id="display-room-code" class="code-badge">----</div>
           </div>
+        </div>
 
-          <div class="divider-text">— OR —</div>
+        <div class="divider-text">— YA —</div>
 
-          <div class="room-box">
-            <h3>JOIN EXISTING ROOM</h3>
-            <input type="text" id="join-player-name" placeholder="Your name" value="Guest Player">
-            <input type="number" id="join-room-code" placeholder="Enter 4-Digit Code" maxlength="4" style="letter-spacing: 3px; font-size: 16px;">
-            <button class="btn btn-primary" id="btn-join-room">JOIN ROOM</button>
-          </div>
+        <!-- Join Room Section -->
+        <div class="room-box">
+          <h3>JOIN ROOM WITH CODE</h3>
+          <input type="text" id="join-player-name" placeholder="Apna Naam Likhein" maxlength="12" />
+          <input type="number" id="join-room-code" placeholder="4-Digit Code Daalein (e.g. 5421)" maxlength="4" />
+          <button id="btn-join-room" class="btn btn-primary btn-large">JOIN ROOM</button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- 2. GAMEPLAY BOARD SCREEN -->
   <div id="game-screen" class="screen-view" style="display: none;">
+    
+    <!-- Top HUD Navigation Bar -->
     <header class="game-hud">
       <div class="hud-left">
         <button id="btn-settings-open" class="icon-btn" title="Settings">⚙️</button>
-        <div class="room-indicator" id="hud-room-display">PASS & PLAY</div>
+        <button id="btn-sound-toggle" class="icon-btn" title="Sound Mute/Unmute">🔊</button>
+        <!-- Realtime WebRTC Mic Toggle Button -->
+        <button id="btn-mic-toggle" class="icon-btn" title="Toggle Mic" style="display: none;">🎙️</button>
+        <span class="room-indicator" id="hud-room-display">PASS &amp; PLAY</span>
       </div>
-      <div class="hud-center">
-        <div class="turn-announcer">
-          <span class="label">CURRENT TURN:</span>
-          <span id="turn-player-name" class="name-highlight">RED</span>
-        </div>
-      </div>
-      <div class="hud-right">
-        <button id="btn-sound-toggle" class="icon-btn" title="Toggle Sound">🔊</button>
+
+      <div class="turn-announcer">
+        <span class="label">CURRENT TURN:</span>
+        <strong id="turn-player-name" class="name-highlight">RED</strong>
       </div>
     </header>
 
+    <!-- Main Board Centered Container -->
     <main class="board-wrapper">
-      <div id="ludo-board" class="ludo-board">
-        <div class="yard yard-green" id="yard-green">
-          <div class="yard-label" id="label-green">GREEN</div>
+      <div class="ludo-board" id="ludo-board">
+        
+        <!-- 4 Base Yards -->
+        <div class="yard yard-green">
+          <span class="yard-label" id="label-green">GREEN</span>
           <div class="yard-inner-card">
             <div class="base-spot spot-green" data-color="green" data-index="0"></div>
             <div class="base-spot spot-green" data-color="green" data-index="1"></div>
@@ -103,8 +117,8 @@
           </div>
         </div>
 
-        <div class="yard yard-yellow" id="yard-yellow">
-          <div class="yard-label" id="label-yellow">YELLOW</div>
+        <div class="yard yard-yellow">
+          <span class="yard-label" id="label-yellow">YELLOW</span>
           <div class="yard-inner-card">
             <div class="base-spot spot-yellow" data-color="yellow" data-index="0"></div>
             <div class="base-spot spot-yellow" data-color="yellow" data-index="1"></div>
@@ -113,8 +127,8 @@
           </div>
         </div>
 
-        <div class="yard yard-red" id="yard-red">
-          <div class="yard-label" id="label-red">RED</div>
+        <div class="yard yard-red">
+          <span class="yard-label" id="label-red">RED</span>
           <div class="yard-inner-card">
             <div class="base-spot spot-red" data-color="red" data-index="0"></div>
             <div class="base-spot spot-red" data-color="red" data-index="1"></div>
@@ -123,8 +137,8 @@
           </div>
         </div>
 
-        <div class="yard yard-blue" id="yard-blue">
-          <div class="yard-label" id="label-blue">BLUE</div>
+        <div class="yard yard-blue">
+          <span class="yard-label" id="label-blue">BLUE</span>
           <div class="yard-inner-card">
             <div class="base-spot spot-blue" data-color="blue" data-index="0"></div>
             <div class="base-spot spot-blue" data-color="blue" data-index="1"></div>
@@ -133,83 +147,111 @@
           </div>
         </div>
 
+        <!-- Center Home Triangles with Trophy -->
         <div class="board-center-triangle">
-          <div class="triangle-part tri-green"></div>
-          <div class="triangle-part tri-yellow"></div>
-          <div class="triangle-part tri-blue"></div>
-          <div class="triangle-part tri-red"></div>
-          <div class="center-trophy">🏆</div>
+          <div class="triangle-part tri-yellow"><div id="home-count-yellow" class="home-count-badge">0/4</div></div>
+          <div class="triangle-part tri-blue"><div id="home-count-blue" class="home-count-badge">0/4</div></div>
+          <div class="triangle-part tri-red"><div id="home-count-red" class="home-count-badge">0/4</div></div>
+          <div class="triangle-part tri-green"><div id="home-count-green" class="home-count-badge">0/4</div></div>
+          <span class="center-trophy">🏆</span>
         </div>
 
+        <!-- 15x15 Track Grid Cells Layer -->
         <div id="cells-layer" class="cells-grid-layer"></div>
+
+        <!-- Tokens Mount Layer -->
         <div id="tokens-layer" class="tokens-interactive-layer"></div>
       </div>
     </main>
 
+    <!-- Bottom Footer Dock (Player Indicator & 3D Dice) -->
     <footer class="game-footer-dock">
-      <div class="player-indicator-badge" id="active-badge-card">
-        <div class="pin-sample" id="badge-pin-icon"></div>
+      <div class="player-indicator-badge">
+        <div id="badge-pin-icon" class="pin-sample token-red"></div>
         <div class="badge-names">
           <small id="footer-player-status">ROLL THE DICE</small>
-          <strong id="footer-player-title">RED</strong>
+          <strong id="footer-player-title">RED PLAYER</strong>
         </div>
       </div>
 
       <div class="dice-station">
-        <button id="btn-roll-dice" class="dice-trigger-btn" aria-label="Roll dice">
-          <div id="dice-3d-box" class="dice-cube show-1">
-            <div class="dice-face face-front"  data-num="1">1</div>
-            <div class="dice-face face-back"   data-num="6">6</div>
-            <div class="dice-face face-right"  data-num="3">3</div>
-            <div class="dice-face face-left"   data-num="4">4</div>
-            <div class="dice-face face-top"    data-num="5">5</div>
-            <div class="dice-face face-bottom" data-num="2">2</div>
+        <div class="dice-pointer" id="dice-pointer-arrow"></div>
+        <button id="btn-roll-dice" class="dice-trigger-btn">
+          <div class="dice-cube show-1" id="dice-3d-box">
+            <div class="dice-face face-front">1</div>
+            <div class="dice-face face-back">6</div>
+            <div class="dice-face face-right">4</div>
+            <div class="dice-face face-left">3</div>
+            <div class="dice-face face-top">2</div>
+            <div class="dice-face face-bottom">5</div>
           </div>
         </button>
-        <div id="dice-pointer-arrow" class="dice-pointer"></div>
       </div>
     </footer>
+
   </div>
 
+  <!-- 3. SETTINGS MODAL -->
   <div id="settings-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-dialog">
-      <h2>Game Settings</h2>
+      <h2>⚙️ SETTINGS</h2>
+      
       <div class="modal-row">
         <span>Sound Effects (SFX)</span>
-        <input type="checkbox" id="toggle-sfx" checked>
+        <input type="checkbox" id="toggle-sfx" checked />
       </div>
+
       <div class="modal-row">
-        <span>Three 6s Penalty Rule</span>
-        <input type="checkbox" id="toggle-three-six" checked>
+        <span>3 Consecutive 6s Penalty</span>
+        <input type="checkbox" id="toggle-three-six" checked />
       </div>
+
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="btn-confirm-restart">Restart Match</button>
-        <button class="btn btn-secondary" id="btn-exit-lobby">Exit to Lobby</button>
-        <button class="btn btn-primary" id="btn-settings-close">Resume</button>
+        <button id="btn-confirm-restart" class="btn btn-secondary">Restart Match</button>
+        <button id="btn-exit-lobby" class="btn btn-secondary">Exit to Lobby</button>
+        <button id="btn-settings-close" class="btn btn-primary">Close</button>
       </div>
     </div>
   </div>
 
+  <!-- 4. RESTART CONFIRMATION MODAL -->
   <div id="confirm-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-dialog alert-dialog">
+    <div class="modal-dialog">
       <h3>Restart Match?</h3>
-      <p>Are you sure you want to discard the active match state?</p>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="btn-modal-cancel">NO</button>
-        <button class="btn btn-primary" id="btn-modal-yes">YES, RESTART</button>
+      <p style="margin: 10px 0; font-size: 13px; color: #94a3b8;">Current game progress reset ho jayega.</p>
+      <div class="modal-actions" style="flex-direction: row; gap: 8px;">
+        <button id="btn-modal-cancel" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+        <button id="btn-modal-yes" class="btn btn-primary" style="flex: 1;">Restart</button>
       </div>
     </div>
   </div>
 
+  <!-- 5. FINAL PODIUM VICTORY MODAL -->
   <div id="victory-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal-dialog victory-dialog">
-      <div class="confetti-holder">🎉 🏆 👑</div>
-      <h2 id="winner-celebrate-title">PLAYER WINS!</h2>
-      <div id="podium-rankings-list" class="podium-list"></div>
-      <button class="btn btn-primary btn-large" id="btn-victory-replay">PLAY AGAIN</button>
+    <div class="modal-dialog victory-dialog" style="max-width: 340px;">
+      <div class="confetti-holder">🏆🎉</div>
+      <h2 id="winner-celebrate-title">MATCH FINISHED!</h2>
+      <div id="podium-rankings-list" class="podium-list">
+        <!-- 1st, 2nd, 3rd Winner & Looser Rank Rows dynamically injected -->
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary btn-large" id="btn-victory-replay">Play Again</button>
+      </div>
     </div>
   </div>
 
+  <!-- Service Worker Register Script for PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.warn('SW registration skipped:', err);
+        });
+      });
+    }
+  </script>
+
+  <!-- Main Game Logic Script -->
   <script src="app.js"></script>
 </body>
 </html>
